@@ -1,0 +1,18 @@
+{
+  "stages": [
+    {
+      "id": "main",
+      "name": "Main Stage",
+      "source_language": "en",
+      "target_language": "es",
+      "audio_file": "../samples/nerdearla-freedos-60s.wav"
+    },
+    {
+      "id": "community",
+      "name": "Community Stage",
+      "source_language": "en",
+      "target_language": "es",
+      "audio_file": "../samples/nerdearla-freedos-60s.wav"
+    }
+  ]
+}

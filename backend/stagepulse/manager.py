@@ -1,0 +1,82 @@
+"""Create and control independent stage workers from JSON configuration."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from .audio import FileAudioSource
+from .captions import CaptionBus
+from .models import StageConfig, StageStatus
+from .providers import GeminiLiveTranslateProvider, GeminiTranscribeProvider
+from .stage import StageWorker
+
+
+class StageManager:
+    def __init__(self, configs: list[StageConfig], api_key: str) -> None:
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY is required")
+        if not configs:
+            raise ValueError("At least one stage must be configured")
+        ids = [config.stage_id for config in configs]
+        if len(set(ids)) != len(ids):
+            raise ValueError("Stage IDs must be unique")
+        self.bus = CaptionBus()
+        self.workers: dict[str, StageWorker] = {}
+        for config in configs:
+            if config.target_language:
+                if (config.source_language, config.target_language) != ("en", "es"):
+                    raise ValueError(
+                        f"Stage {config.stage_id}: Gate 3 translation supports en to es"
+                    )
+                provider = GeminiLiveTranslateProvider(
+                    api_key, config.source_language, config.target_language
+                )
+            else:
+                provider = GeminiTranscribeProvider(api_key, config.source_language)
+            self.workers[config.stage_id] = StageWorker(
+                config,
+                FileAudioSource(config.audio_file),
+                provider,
+                self.bus,
+                api_key,
+            )
+
+    @classmethod
+    def from_file(cls, path: Path, api_key: str) -> StageManager:
+        path = path.resolve()
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data.get("stages"), list):
+            raise ValueError("Configuration must contain a stages array")
+        configs = []
+        for item in data["stages"]:
+            configs.append(
+                StageConfig(
+                    stage_id=item["id"],
+                    name=item["name"],
+                    source_language=item["source_language"],
+                    target_language=item.get("target_language"),
+                    audio_file=(path.parent / item["audio_file"]).resolve(),
+                )
+            )
+        return cls(configs, api_key)
+
+    def start(self, stage_id: str) -> None:
+        self.workers[stage_id].start()
+
+    def start_all(self) -> None:
+        for worker in self.workers.values():
+            worker.start()
+
+    async def stop(self, stage_id: str) -> None:
+        await self.workers[stage_id].stop()
+
+    async def wait_all(self) -> None:
+        for worker in self.workers.values():
+            await worker.wait()
+
+    def status(self, stage_id: str) -> StageStatus:
+        return self.workers[stage_id].status
+
+    def statuses(self) -> dict[str, StageStatus]:
+        return {stage_id: worker.status for stage_id, worker in self.workers.items()}
