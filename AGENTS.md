@@ -67,3 +67,12 @@ For each task:
 6. Commit only a working checkpoint.
 
 Working functionality beats architecture elegance.
+
+## Language policy
+
+- Code, technical names, variables, functions, classes, endpoints, technical comments, and commit messages must be in English.
+- Canonical documentation is written in English. English is the source of truth.
+- User, deployment, and operations documentation may have separate Spanish files when useful, for example `README.md` / `README.es.md`, `operations.md` / `operations.es.md`, and `deployment.md` / `deployment.es.md`.
+- Do not put complete English and Spanish versions in the same file. Keep Spanish translations synchronized with their English source.
+- The UI will be bilingual in English and Spanish. Implement UI/UX after the core is stable.
+- The planned initial language selector text is `Choose your language` / `Elige tu idioma`.
