@@ -10,6 +10,21 @@ The goal is simple: capture live audio from each stage once, transcribe and tran
 
 Work in progress.
 
+## Local live transcription
+
+Install FFmpeg and the Python dependencies, then add `GEMINI_API_KEY` to the
+project's local `.env` file. The key is read locally and is never printed.
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python backend/transcribe_file.py path\to\audio-or-video-file
+```
+
+The tool sends mono, 16-bit, 16 kHz PCM to Gemini Live in real time and prints
+interim and finalized input transcriptions. The current live transcription
+model supports sessions of up to 10 minutes.
+
 ## Core goals
 
 - Real-time original-language transcription
