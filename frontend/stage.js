@@ -1,5 +1,6 @@
 import { createCaptionView } from "/static/captions.js";
 import { initI18n, stateText, t } from "/static/i18n.js";
+import { talkPrep } from "/static/talk-prep.js";
 
 const stageSelect = document.querySelector("#stage");
 const deviceSelect = document.querySelector("#device");
@@ -319,11 +320,14 @@ function connectCaptions() {
 }
 
 async function updateStatus() {
-  if (!selectedStage()) return;
+  const stageId = selectedStage();
+  if (!stageId) return;
   try {
-    const response = await fetch(`/api/stages/${encodeURIComponent(selectedStage())}`);
+    const response = await fetch(`/api/stages/${encodeURIComponent(stageId)}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const status = await response.json();
+    if (stageId !== selectedStage()) return;
+    talkPrep.setActive(["starting", "running"].includes(status.state));
     if (!desired && !fileStarting && status.source_mode === "test_file"
         && ["starting", "running"].includes(status.state) && !fileRunning) {
       sourceModeSelect.value = "file";
@@ -354,6 +358,7 @@ async function updateStatus() {
       error: status.error ? t("stageStatusError", { error: status.error }) : "",
     });
   } catch (error) {
+    if (stageId !== selectedStage()) return;
     stageStatus.textContent = t("stageStatusUnavailable", { error: error.message });
   }
 }
@@ -361,6 +366,7 @@ async function updateStatus() {
 stageSelect.onchange = (event) => {
   if (event) localStorage.setItem("stagepulse-stage", selectedStage());
   updateAudienceLink();
+  talkPrep.loadStage(selectedStage());
   views.en.clear();
   views.es.clear();
   connectCaptions();
@@ -381,7 +387,10 @@ testFileInput.onchange = () => {
   }
   syncSourceControls();
 };
-startButton.onclick = () => sourceModeSelect.value === "file" ? startTestFile() : startCapture();
+startButton.onclick = () => {
+  talkPrep.setActive(true);
+  return sourceModeSelect.value === "file" ? startTestFile() : startCapture();
+};
 stopButton.onclick = () => fileRunning ? stopTestFile() : stopCapture();
 document.querySelector("#copy-audience-url").onclick = async () => {
   try {
@@ -395,6 +404,7 @@ document.querySelector("#copy-audience-url").onclick = async () => {
 initI18n(() => {
   setConnection(connectionMessage.key, connectionMessage.values);
   if (audienceMessage) setAudienceMessage(audienceMessage.key, audienceMessage.values);
+  talkPrep.refreshLanguage();
   stageStatus.textContent = t("stageStatusInitial");
   updateStatus();
 });

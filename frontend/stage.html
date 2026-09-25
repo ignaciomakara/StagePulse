@@ -25,6 +25,19 @@
           <div class="control-buttons"><button id="start" class="button-primary" type="button" data-i18n="start">Start</button><button id="stop" class="button-danger" type="button" data-i18n="stop" disabled>Stop</button></div>
         </div>
       </section>
+      <section class="panel talk-prep" aria-labelledby="talk-prep-heading">
+        <div class="section-heading"><h2 id="talk-prep-heading" data-i18n="talkPreparation">Talk preparation</h2></div>
+        <p class="subtle" data-i18n="prepHelp">Prepare terminology before starting this stage. Suggestions are applied only after your review.</p>
+        <div class="talk-prep-fields">
+          <label><span data-i18n="talkTitle">Talk title</span><input id="talk-title" type="text" maxlength="200"></label>
+          <label><span data-i18n="talkSpeaker">Speaker</span><input id="talk-speaker" type="text" maxlength="160"></label>
+          <label class="talk-prep-description"><span data-i18n="talkAbstract">Abstract / description</span><textarea id="talk-abstract" maxlength="4000" rows="3"></textarea></label>
+        </div>
+        <div class="talk-prep-actions"><button id="suggest-terms" type="button" data-i18n="suggestTerminology">Suggest terminology</button><button id="add-term" type="button" data-i18n="addTerm">Add term</button></div>
+        <h3 data-i18n="suggestedTerminology">Suggested terminology</h3><p class="subtle talk-prep-hint" data-i18n="prepVariantsHelp">Edit terms and optional comma-separated variants before applying.</p>
+        <div id="talk-terms" class="talk-terms"></div>
+        <div class="talk-prep-footer"><button id="apply-terms" class="button-primary" type="button" data-i18n="applyToStage">Apply to stage</button><p id="talk-prep-status" class="status-detail" role="status"></p></div>
+      </section>
       <section class="panel live-panel" aria-labelledby="live-heading">
         <div class="section-heading"><h2 id="live-heading" data-i18n="liveStatus">Live status</h2><p id="connection" class="inline-status" role="status" data-i18n="idle">Idle</p></div>
         <div class="signal-grid">

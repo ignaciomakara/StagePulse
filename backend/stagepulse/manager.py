@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
+from dataclasses import replace
 from pathlib import Path
 
 from .audio import FileAudioSource
@@ -11,6 +13,8 @@ from .diagnostics import StageDiagnostics
 from .models import StageConfig, StageStatus
 from .providers import GeminiLiveTranslateProvider, GeminiTranscribeProvider
 from .stage import DEFAULT_TRANSLATION_STALL_SECONDS, StageWorker
+from .talk_prep import TalkPrepService, TalkTerm, build_terminology, validate_terms
+from .terminology import TerminologyNormalizer
 
 
 class StageManager:
@@ -35,6 +39,13 @@ class StageManager:
         if len(set(ids)) != len(ids):
             raise ValueError("Stage IDs must be unique")
         self.bus = CaptionBus()
+        self.talk_prep = TalkPrepService(api_key)
+        self._configured_terminology = {
+            config.stage_id: deepcopy(config.terminology) for config in configs
+        }
+        self._applied_talk_terms: dict[str, list[TalkTerm]] = {
+            config.stage_id: [] for config in configs
+        }
         self.workers: dict[str, StageWorker] = {}
         for config in configs:
             stage_diagnostics = StageDiagnostics(config.stage_id) if diagnostics else None
@@ -62,6 +73,33 @@ class StageManager:
                 recover_translation_stall=recover_translation_stall,
                 translation_stall_seconds=translation_stall_seconds,
             )
+
+    def talk_prep_state(self, stage_id: str) -> dict:
+        terms = self._applied_talk_terms[stage_id]
+        terminology = self.workers[stage_id].config.terminology or {}
+        active_count = len({target for rules in terminology.values() for target in rules.values()})
+        return {
+            "terms": [term.model_dump() for term in terms],
+            "active_count": active_count,
+            "editable": self.workers[stage_id].status.state not in {"starting", "running"},
+        }
+
+    def apply_talk_terms(self, stage_id: str, terms: list[TalkTerm]) -> dict:
+        worker = self.workers[stage_id]
+        if worker.status.state in {"starting", "running"}:
+            raise RuntimeError("Stop the stage before changing terminology")
+        cleaned = validate_terms(terms)
+        languages = (worker.config.source_language, worker.config.target_language)
+        effective = build_terminology(
+            self._configured_terminology[stage_id], cleaned,
+            tuple(language for language in languages if language),
+        )
+        normalizer = TerminologyNormalizer(effective)
+        # Replace the existing normalizer only while the stage is idle.
+        worker.config = replace(worker.config, terminology=effective)
+        worker._terminology = normalizer
+        self._applied_talk_terms[stage_id] = cleaned
+        return self.talk_prep_state(stage_id)
 
     @classmethod
     def from_file(

@@ -15,9 +15,9 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 body { margin: 0; min-width: 320px; }
-button, select, input { font: inherit; }
-button, select, input, a { -webkit-tap-highlight-color: transparent; }
-button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+button, select, input, textarea { font: inherit; }
+button, select, input, textarea, a { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
 .app-shell { width: min(100%, 1500px); margin: 0 auto; padding: 32px clamp(20px, 3vw, 52px) 64px; }
 .page-header, .audience-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
@@ -37,9 +37,9 @@ h3 { margin: 0; font-size: .92rem; font-weight: 700; }
 .section-heading:has(+ .caption-grid) { margin-bottom: 14px; }
 
 label { display: grid; gap: 7px; color: var(--muted); font-size: .8rem; font-weight: 650; }
-select, input { min-height: 42px; width: 100%; padding: 9px 36px 9px 12px; color: #f4f8fa; background: #0e1820; border: 1px solid #49606c; border-radius: 8px; }
+select, input, textarea { min-height: 42px; width: 100%; padding: 9px 36px 9px 12px; color: #f4f8fa; background: #0e1820; border: 1px solid #49606c; border-radius: 8px; }
 input[readonly] { color: #d5e1e6; }
-select:hover, input:hover { border-color: #7e9aa8; }
+select:hover, input:hover, textarea:hover { border-color: #7e9aa8; }
 button, .page-actions a, .stage-actions a { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 9px 15px; border: 1px solid #526977; border-radius: 8px; color: #eaf2f4; background: #23333f; text-decoration: none; font-size: .84rem; font-weight: 700; line-height: 1.25; cursor: pointer; }
 button:hover:not(:disabled), .page-actions a:hover, .stage-actions a:hover { background: #2d4350; border-color: #88a4ae; }
 button:disabled { opacity: .42; cursor: default; }
@@ -57,6 +57,18 @@ button:disabled { opacity: .42; cursor: default; }
 .control-buttons { grid-column: 1 / -1; padding-top: 3px; }
 .control-buttons .button-primary { min-width: 110px; }
 .ui-language-control { max-width: 180px; }
+.talk-prep > .subtle { margin: 0 0 18px; font-size: .85rem; }
+.talk-prep-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.talk-prep-description { grid-column: 1 / -1; }
+.talk-prep textarea { padding-right: 12px; resize: vertical; line-height: 1.45; }
+.talk-prep-actions, .talk-prep-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 15px; }
+.talk-prep h3 { margin-top: 22px; margin-bottom: 11px; }
+.talk-prep .talk-prep-hint { margin: 0 0 10px; font-size: .78rem; }
+.talk-terms { display: grid; gap: 8px; }
+.talk-term { display: grid; grid-template-columns: auto minmax(120px, 1fr) minmax(130px, 1.2fr) auto; align-items: center; gap: 8px; }
+.talk-term input[type="checkbox"] { width: 18px; min-height: 18px; accent-color: var(--accent); }
+.talk-term input[type="text"] { padding-right: 10px; }
+.talk-prep-footer .status-detail { margin: 0; }
 
 .status-badge, .inline-status { display: inline-flex; align-items: center; gap: 9px; color: var(--muted); }
 .status-badge { flex: none; margin: 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-raised); font-size: .75rem; font-weight: 800; line-height: 1.1; text-transform: uppercase; letter-spacing: .06em; }
@@ -169,6 +181,9 @@ button:disabled { opacity: .42; cursor: default; }
   .controls { grid-template-columns: 1fr; }
   .controls .ui-language-control { max-width: none; }
   .control-buttons button { flex: 1 1 42%; }
+  .talk-prep-fields { grid-template-columns: 1fr; }
+  .talk-term { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .talk-term .term-variants { grid-column: 2 / -1; }
   .audience-share { grid-template-columns: 1fr; }
   .audience-share img { grid-row: 1; width: 130px; height: 130px; }
   .audience { padding: 24px 22px 26px; }

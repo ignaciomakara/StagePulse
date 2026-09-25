@@ -81,6 +81,10 @@ An optional `terminology` map applies explicit word-boundary replacements to cap
 
 The example is configured only for `main`; a stage without `terminology` retains its original caption text. This is deterministic text replacement, not another model or fuzzy matching.
 
+### Talk-aware terminology preparation
+
+Before a talk, use **Talk preparation** in Stage Console to enter its title, speaker, and description. **Suggest terminology** makes one optional Gemini text request for up to 15 likely named terms and variants. Review, edit, enable, remove, or manually add terms, then press **Apply to stage**. Suggestions never apply automatically. StagePulse adds approved terms to the existing stage-specific `TerminologyNormalizer` before Start; this does not add another model request to the live caption path. Preparation is read-only while that stage runs. Applied terms remain in memory until the server restarts, and configured terminology remains available. This is an explicit spelling aid, not a measured accuracy improvement.
+
 ## Run a conference stage
 
 1. Open `http://127.0.0.1:8000/stage` on the stage computer. Choose the stage and audio input, then press **Start**. The console shows original and Spanish captions.

@@ -81,6 +81,10 @@ El mapa opcional `terminology` aplica reemplazos explícitos dentro de límites 
 
 El ejemplo se configura sólo para `main`; un escenario sin `terminology` conserva su texto original. Es un reemplazo determinístico, sin otro modelo ni coincidencia aproximada.
 
+### Preparación de terminología por charla
+
+Antes de una charla, usá **Preparación de la charla** en Stage Console para ingresar título, orador y descripción. **Sugerir terminología** hace una solicitud opcional al modelo de texto de Gemini para proponer hasta 15 nombres y variantes probables. Revisá, editá, habilitá, quitá o agregá términos manualmente y después presioná **Aplicar al escenario**. Las sugerencias nunca se aplican automáticamente. StagePulse incorpora los términos aprobados al `TerminologyNormalizer` específico del escenario antes de Iniciar; no agrega otra solicitud de modelo al camino de subtítulos en vivo. La preparación queda de sólo lectura mientras ese escenario está activo. Los términos aplicados permanecen en memoria hasta reiniciar el servidor y se conserva la terminología configurada. Es una ayuda explícita de escritura, no una mejora de precisión medida.
+
 ## Operación de un escenario
 
 1. Abrí `http://127.0.0.1:8000/stage` en la computadora del escenario. Elegí escenario y entrada de audio y presioná **Iniciar**. La consola muestra subtítulos originales y en español.

@@ -20,6 +20,7 @@ from qrcode.image.svg import SvgPathImage
 
 from .audio import BrowserAudioSource, FileAudioSource
 from .manager import StageManager
+from .talk_prep import ApplyTerms, TalkMetadata, TalkPrepError
 
 
 FRONTEND = Path(__file__).resolve().parents[2] / "frontend"
@@ -162,6 +163,36 @@ def create_app(manager: StageManager, public_base_url: str | None = None) -> Fas
         if stage_id not in manager.workers:
             raise HTTPException(404, "Unknown stage")
         return status_payload(stage_id)
+
+    @app.get("/api/stages/{stage_id}/talk-prep")
+    def talk_prep_state(stage_id: str) -> dict:
+        if stage_id not in manager.workers:
+            raise HTTPException(404, "Unknown stage")
+        return manager.talk_prep_state(stage_id)
+
+    @app.post("/api/stages/{stage_id}/talk-prep/suggestions")
+    async def suggest_talk_terms(stage_id: str, metadata: TalkMetadata) -> dict:
+        if stage_id not in manager.workers:
+            raise HTTPException(404, "Unknown stage")
+        if manager.status(stage_id).state in {"starting", "running"}:
+            raise HTTPException(409, "Stop the stage before preparing terminology")
+        try:
+            terms = await asyncio.to_thread(manager.talk_prep.suggest, metadata)
+        except TalkPrepError as error:
+            raise HTTPException(502, str(error)) from None
+        return {"terms": [term.model_dump() for term in terms]}
+
+    @app.post("/api/stages/{stage_id}/talk-prep")
+    async def apply_talk_terms(stage_id: str, payload: ApplyTerms) -> dict:
+        if stage_id not in manager.workers:
+            raise HTTPException(404, "Unknown stage")
+        async with locks[stage_id]:
+            try:
+                return manager.apply_talk_terms(stage_id, payload.terms)
+            except RuntimeError as error:
+                raise HTTPException(409, str(error)) from None
+            except ValueError as error:
+                raise HTTPException(422, str(error)) from None
 
     @app.post("/api/stages/{stage_id}/stop")
     async def stop(stage_id: str) -> dict:
