@@ -25,6 +25,9 @@ export function initI18n(onChange = () => {}) {
     for (const element of document.querySelectorAll("[data-i18n-alt]")) {
       element.alt = t(element.dataset.i18nAlt);
     }
+    for (const element of document.querySelectorAll("[data-i18n-aria-label]")) {
+      element.setAttribute("aria-label", t(element.dataset.i18nAriaLabel));
+    }
     onChange();
   }
   if (selector) selector.onchange = () => {

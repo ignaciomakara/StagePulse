@@ -3,35 +3,48 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <title data-i18n="stageTitle">StagePulse · Stage Console</title>
     <link rel="stylesheet" href="/static/style.css">
     <script type="module" src="/static/stage.js"></script>
   </head>
   <body>
-    <main>
-      <header><h1 data-i18n="stageTitle">StagePulse · Stage Console</h1><p data-i18n="stageSubtitle">Live stage audio and captions</p></header>
-      <section class="controls">
-        <label><span data-i18n="uiLanguage">UI language</span><select id="ui-language"><option value="en">English</option><option value="es">Español</option></select></label>
-        <label><span data-i18n="stage">Stage</span><select id="stage"></select></label>
-        <label><span data-i18n="audioInput">Audio input</span><select id="device"></select></label>
-        <button id="devices" type="button" data-i18n="enableDevices">Enable audio devices</button>
-        <button id="start" type="button" data-i18n="start">Start</button>
-        <button id="stop" type="button" data-i18n="stop" disabled>Stop</button>
-        <a id="audience-link" target="_blank" rel="noopener" data-i18n="openAudience">Open Audience View</a>
-        <a href="/control" target="_blank" rel="noopener" data-i18n="openControl">Open Control Room</a>
+    <main class="app-shell stage-console">
+      <header class="page-header">
+        <div><p class="eyebrow">StagePulse / <span data-i18n="stageConsole">Stage Console</span></p><h1 data-i18n="stageConsole">Stage Console</h1><p class="subtle" data-i18n="stageSubtitle">Live stage audio and captions</p></div>
+        <div id="stage-badge" class="status-badge" data-state="created" data-i18n="state_created">created</div>
+      </header>
+      <section class="panel setup-panel" aria-labelledby="setup-heading">
+        <div class="section-heading"><h2 id="setup-heading" data-i18n="setup">Setup &amp; controls</h2><nav class="page-actions" aria-label="Stage navigation" data-i18n-aria-label="stageNavigation"><a id="audience-link" target="_blank" rel="noopener" data-i18n="openAudience">Open Audience View</a><a href="/control" target="_blank" rel="noopener" data-i18n="openControl">Open Control Room</a></nav></div>
+        <div class="controls">
+          <label><span data-i18n="stage">Stage</span><select id="stage"></select></label>
+          <label><span data-i18n="audioSource">Audio source</span><select id="source-mode"><option value="live" data-i18n="liveInput">Live input</option><option value="file" data-i18n="testFile">Test file</option></select></label>
+          <label class="ui-language-control"><span data-i18n="uiLanguage">UI language</span><select id="ui-language"><option value="en">English</option><option value="es">Español</option></select></label>
+          <div id="live-input-controls" class="source-controls"><label><span data-i18n="audioInput">Audio input</span><select id="device"></select></label><button id="devices" type="button" data-i18n="enableDevices">Enable audio devices</button></div>
+          <div id="test-file-controls" class="source-controls" hidden><span data-i18n="audioVideoFile">Audio or video file</span><input id="test-file-input" type="file" accept=".wav,.mp3,.m4a,.flac,.ogg,.mp4,.mov,.webm" hidden><button id="choose-test-file" type="button" data-i18n="chooseFile">Choose file</button><span id="test-file-name" class="subtle" data-i18n="noFileSelected">No file selected</span></div>
+          <div class="control-buttons"><button id="start" class="button-primary" type="button" data-i18n="start">Start</button><button id="stop" class="button-danger" type="button" data-i18n="stop" disabled>Stop</button></div>
+        </div>
       </section>
-      <section class="audience-share" aria-label="Audience link">
-        <h2 data-i18n="audienceQr">Audience QR</h2>
-        <img id="audience-qr" alt="Audience View QR code" data-i18n-alt="audienceQrAlt" width="180" height="180">
-        <label><span data-i18n="audienceUrl">Audience URL</span><input id="audience-url" type="url" readonly></label>
-        <button id="copy-audience-url" type="button" data-i18n="copyAudience">Copy audience link</button>
-        <p id="audience-warning" role="status"></p>
+      <section class="panel live-panel" aria-labelledby="live-heading">
+        <div class="section-heading"><h2 id="live-heading" data-i18n="liveStatus">Live status</h2><p id="connection" class="inline-status" role="status" data-i18n="idle">Idle</p></div>
+        <div class="signal-grid">
+          <div class="signal"><span data-i18n="audio">Audio</span><strong id="signal-audio" data-state="waiting">—</strong></div>
+          <div class="signal"><span data-i18n="gemini">Gemini</span><strong id="signal-provider" data-state="waiting">—</strong></div>
+          <div class="signal"><span data-i18n="translation">Translation</span><strong id="signal-translation" data-state="waiting">—</strong></div>
+          <div class="signal"><span data-i18n="viewers">Viewers</span><strong id="signal-viewers">—</strong></div>
+        </div>
+        <p id="stage-status" class="status-detail" data-i18n="stageStatusInitial">Stage status: created</p>
       </section>
-      <p id="connection" role="status">Idle</p>
-      <p id="stage-status">Stage status: created</p>
-      <section class="caption-grid">
-        <article><h2 data-i18n="originalEnglish">Original · English</h2><div id="original" class="captions" aria-live="polite"></div></article>
-        <article><h2 data-i18n="spanish">Español</h2><div id="translated" class="captions" aria-live="polite"></div></article>
+      <section aria-labelledby="captions-heading">
+        <div class="section-heading"><h2 id="captions-heading" data-i18n="captions">Captions</h2></div>
+        <div class="caption-grid">
+          <article class="panel caption-panel"><h3 data-i18n="originalEnglish">Original · English</h3><div id="original" class="captions" aria-live="polite"></div></article>
+          <article class="panel caption-panel"><h3 data-i18n="spanish">Español</h3><div id="translated" class="captions" aria-live="polite"></div></article>
+        </div>
+      </section>
+      <section class="panel audience-share" aria-labelledby="audience-heading">
+        <div><h2 id="audience-heading" data-i18n="audienceAccess">Audience access</h2><p class="subtle" data-i18n="audienceShare">Share this QR with the audience.</p><label><span data-i18n="audienceUrl">Audience URL</span><input id="audience-url" type="url" readonly></label><button id="copy-audience-url" type="button" data-i18n="copyAudience">Copy audience link</button><p id="audience-warning" role="status"></p></div>
+        <img id="audience-qr" alt="Audience View QR code" data-i18n-alt="audienceQrAlt" width="160" height="160">
       </section>
     </main>
   </body>

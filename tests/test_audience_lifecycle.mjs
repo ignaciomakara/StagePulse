@@ -4,10 +4,12 @@ import { test } from "node:test";
 
 test("audience reconnects once on return and keeps the caption language", async () => {
   const listeners = new Map();
+  let rerenderUi;
   const elements = new Map();
   const element = () => ({
     textContent: "",
     value: "",
+    dataset: {},
     children: [],
     replaceChildren() { this.children = []; },
     append(child) { this.children.push(child); },
@@ -46,7 +48,7 @@ test("audience reconnects once on return and keeps the caption language", async 
     fetch: async () => ({ ok: true, json: async () => ({ name: "Main" }) }),
     setTimeout: (callback) => { const id = ++nextTimer; timers.set(id, callback); return id; },
     clearTimeout: (id) => timers.delete(id),
-    __testI18n: { initI18n: (callback) => callback(), t: (key) => key },
+    __testI18n: { initI18n: (callback) => { rerenderUi = callback; callback(); }, t: (key) => key },
   };
   for (const [key, value] of Object.entries(globals)) {
     originals.set(key, globalThis[key]);
@@ -66,6 +68,30 @@ test("audience reconnects once on return and keeps the caption language", async 
     first.onopen();
     first.onmessage({ data: JSON.stringify({ language: "es", text: "Anterior", is_final: true }) });
     assert.equal(elements.get("#captions").children[0].textContent, "Anterior");
+    for (const text of ["Primera", "Segunda", "Tercera", "Cuarta"]) {
+      first.onmessage({ data: JSON.stringify({ language: "es", text, is_final: true }) });
+    }
+    assert.deepEqual(elements.get("#captions").children.map((line) => line.textContent),
+      ["Segunda", "Tercera", "Cuarta"]);
+    assert.deepEqual(elements.get("#captions").children.map((line) => line.className),
+      ["previous", "previous", "current"]);
+    first.onmessage({ data: JSON.stringify({ language: "es", text: "Adelanto", is_final: false }) });
+    first.onmessage({ data: JSON.stringify({ language: "es", text: "Adelanto actualizado", is_final: false }) });
+    assert.deepEqual(elements.get("#captions").children.map((line) => line.textContent),
+      ["Tercera", "Cuarta", "Adelanto actualizado"]);
+    first.onmessage({ data: JSON.stringify({ language: "es", text: "Frase final", is_final: true }) });
+    assert.deepEqual(elements.get("#captions").children.map((line) => line.textContent),
+      ["Tercera", "Cuarta", "Frase final"]);
+    first.onmessage({ data: JSON.stringify({ language: "en", text: "English current", is_final: true }) });
+    elements.get("#language").value = "en";
+    elements.get("#language").onchange();
+    assert.deepEqual(elements.get("#captions").children.map((line) => line.textContent), ["English current"]);
+    rerenderUi();
+    assert.deepEqual(elements.get("#captions").children.map((line) => line.textContent), ["English current"]);
+    elements.get("#language").value = "es";
+    elements.get("#language").onchange();
+    assert.deepEqual(elements.get("#captions").children.map((line) => line.textContent),
+      ["Tercera", "Cuarta", "Frase final"]);
 
     document.visibilityState = "hidden";
     listeners.get("document:visibilitychange")();

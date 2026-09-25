@@ -3,8 +3,13 @@
 from __future__ import annotations
 
 import sys
+import time
 import unittest
+import wave
+from io import BytesIO
 from pathlib import Path
+from shutil import which
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
@@ -43,6 +48,66 @@ class BrowserAudioSourceTests(unittest.IsolatedAsyncioTestCase):
 
 
 class WebBridgeTests(unittest.TestCase):
+    @unittest.skipUnless(which("ffmpeg"), "FFmpeg is required for file upload")
+    def test_uploaded_file_uses_stage_worker_and_cleans_up(self) -> None:
+        class FileProvider:
+            name = "test-provider"
+
+            def __init__(self) -> None:
+                self.calls = 0
+
+            async def run(self, audio, on_transcript, on_connected) -> None:
+                self.calls += 1
+                on_connected()
+                async for _ in audio.chunks():
+                    on_transcript(ProviderTranscript("en", "DOS works well.", "fragment"))
+                    on_transcript(ProviderTranscript("es", "DOS funciona bien.", "fragment"))
+
+        output = BytesIO()
+        with wave.open(output, "wb") as sample:
+            sample.setnchannels(1)
+            sample.setsampwidth(2)
+            sample.setframerate(16000)
+            sample.writeframes(bytes(16000 * 2))
+
+        manager = StageManager(
+            [StageConfig("main", "Main", "en", "es", Path("unused.wav"))],
+            "unit-test-placeholder",
+        )
+        provider = FileProvider()
+        manager.workers["main"].provider = provider
+        with TestClient(create_app(manager)) as client:
+            endpoint = "/api/stages/main/test-file?filename=sample.wav"
+            self.assertEqual(client.post(endpoint, content=b"").status_code, 400)
+            self.assertEqual(client.post(endpoint.replace(".wav", ".txt"), content=b"abc").status_code, 415)
+            with patch("stagepulse.web.MAX_TEST_FILE_BYTES", 16):
+                self.assertEqual(client.post(endpoint, content=bytes(17)).status_code, 413)
+            response = client.post(endpoint, content=output.getvalue())
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["source_mode"], "test_file")
+            uploaded = manager.workers["main"].audio.path
+            self.assertTrue(uploaded.is_file())
+            for _ in range(30):
+                if client.get("/api/stages/main").json()["state"] in {"completed", "failed"}:
+                    break
+                time.sleep(0.1)
+            status = client.get("/api/stages/main").json()
+            self.assertEqual(status["state"], "completed", status["error"])
+            latest = manager.bus.subscribe("main")
+            self.assertEqual({latest.queue.get_nowait().language for _ in range(2)}, {"en", "es"})
+            latest.close()
+            for _ in range(30):
+                if not uploaded.exists():
+                    break
+                time.sleep(0.1)
+            self.assertFalse(uploaded.exists())
+            self.assertEqual(client.get("/api/stages/main").json()["source_mode"], None)
+            self.assertEqual(provider.calls, 1)
+            with client.websocket_connect("/ws/stages/main/audio") as audio:
+                audio.receive_json()
+                self.assertEqual(client.post(endpoint, content=output.getvalue()).status_code, 409)
+            client.post("/api/stages/main/stop")
+
     def test_production_routes_and_audience_qr(self) -> None:
         configs = [
             StageConfig(stage_id, stage_id.title(), "en", "es", Path("unused.wav"))

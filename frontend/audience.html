@@ -3,18 +3,17 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <title data-i18n="audienceTitle">StagePulse · Audience</title>
     <link rel="stylesheet" href="/static/style.css">
     <script type="module" src="/static/audience.js"></script>
   </head>
   <body>
     <main class="audience">
-      <header><h1 id="stage-title">StagePulse</h1></header>
-      <label><span data-i18n="uiLanguage">UI language</span><select id="ui-language"><option value="en">English</option><option value="es">Español</option></select></label>
-      <label><span data-i18n="captionLanguage">Caption language</span><select id="language"><option value="en" data-i18n="original">Original</option><option value="es" data-i18n="spanish">Español</option></select></label>
-      <button id="fullscreen" type="button" data-i18n="fullscreen">Fullscreen</button>
-      <p id="connection" role="status">Connecting…</p>
+      <header class="audience-header"><div><p class="eyebrow">StagePulse / <span data-i18n="audience">Audience</span></p><h1 id="stage-title">StagePulse</h1></div><p id="connection" class="status-badge audience-status" role="status" data-state="waiting" data-i18n="connecting">Connecting…</p></header>
+      <div class="audience-toolbar"><label class="caption-language-control"><span data-i18n="captionLanguage">Caption language</span><select id="language"><option value="en" data-i18n="original">Original</option><option value="es" data-i18n="spanish">Español</option></select></label><button id="fullscreen" class="button-quiet" type="button" data-i18n="fullscreen">Fullscreen</button></div>
       <div id="captions" class="captions audience-captions" aria-live="polite"></div>
+      <div class="audience-footer"><label class="ui-language-control"><span data-i18n="uiLanguage">UI language</span><select id="ui-language"><option value="en">English</option><option value="es">Español</option></select></label></div>
     </main>
   </body>
 </html>

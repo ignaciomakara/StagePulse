@@ -41,10 +41,16 @@ function createCard(stage) {
   const card = document.createElement("article");
   card.className = "stage-card";
   const heading = document.createElement("h2");
-  card.append(heading);
+  const stageId = document.createElement("span");
+  stageId.className = "stage-card-id";
+  const title = document.createElement("div");
+  title.append(heading, stageId);
   const state = document.createElement("p");
   state.className = "stage-indicator";
-  card.append(state);
+  const header = document.createElement("div");
+  header.className = "stage-card-header";
+  header.append(title, state);
+  card.append(header);
   const details = document.createElement("dl");
   card.append(details);
   const actions = document.createElement("div");
@@ -70,37 +76,44 @@ function createCard(stage) {
   actions.append(copy);
   card.append(actions);
   container.append(card);
-  cards.set(stage.stage_id, { card, heading, state, details });
+  cards.set(stage.stage_id, { card, heading, stageId, state, details });
   return cards.get(stage.stage_id);
 }
 
 function renderStage(stage) {
   const entry = cards.get(stage.stage_id) || createCard(stage);
-  entry.heading.textContent = `${stage.name} (${stage.stage_id})`;
+  entry.heading.textContent = stage.name;
+  entry.stageId.textContent = stage.stage_id;
   const label = stateLabel(stage);
   entry.state.textContent = t(label === "running/connected" ? "runningConnected" : label === "stopped/error" ? "stoppedError" : "attention");
   entry.state.dataset.state = label;
   const values = [
-    ["stage", stateText(stage.state)],
+    ...(stage.source_mode && ["starting", "running"].includes(stage.state)
+      ? [["audioSource", t(stage.source_mode === "test_file" ? "testFile" : "liveInput")]] : []),
     ["browserConnected", yesNo(stage.browser_connected)],
     ["audioReceiving", `${yesNo(stage.audio_receiving)} · ${t("lastAudio", { age: since(stage.last_audio_at) })}`],
     ["providerConnected", `${yesNo(stage.provider_connected)} · ${stateText(stage.provider_status)}`],
-    ...(stage.translation_status
-      ? [["translation", t(stage.translation_status === "delayed" ? "translationDelayed" : "translationOk")]]
-      : []),
+    ["translation", stage.translation_status
+      ? t(stage.translation_status === "delayed" ? "translationDelayed" : "translationOk") : "—"],
+    ["viewers", stage.viewers],
     ["connections", stage.connection_count],
     ["reconnects", stage.reconnect_count],
     ["sessionAge", connectionAge(stage.session_age_seconds)],
     ["connectionAge", connectionAge(stage.connection_age_seconds)],
     ["lastCaption", since(stage.last_caption_at)],
-    ["lastError", stage.last_error || stage.error || "—"],
-    ["subscribers", stage.viewers],
+    ...(stage.last_error || stage.error ? [["lastError", stage.last_error || stage.error]] : []),
   ];
   entry.details.replaceChildren();
   for (const [key, value] of values) {
     const term = document.createElement("dt");
+    term.dataset.key = key;
     term.textContent = t(key);
     const description = document.createElement("dd");
+    description.dataset.key = key;
+    if (key === "translation") description.dataset.state = stage.translation_status || "waiting";
+    if (key === "browserConnected") description.dataset.state = stage.browser_connected ? "connected" : "waiting";
+    if (key === "audioReceiving") description.dataset.state = stage.audio_receiving ? "connected" : "waiting";
+    if (key === "providerConnected") description.dataset.state = stage.provider_connected ? "connected" : "waiting";
     description.textContent = String(value);
     entry.details.append(term, description);
   }

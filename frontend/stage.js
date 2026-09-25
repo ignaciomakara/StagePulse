@@ -3,8 +3,19 @@ import { initI18n, stateText, t } from "/static/i18n.js";
 
 const stageSelect = document.querySelector("#stage");
 const deviceSelect = document.querySelector("#device");
+const sourceModeSelect = document.querySelector("#source-mode");
+const liveInputControls = document.querySelector("#live-input-controls");
+const testFileControls = document.querySelector("#test-file-controls");
+const testFileInput = document.querySelector("#test-file-input");
+const testFileName = document.querySelector("#test-file-name");
+const devicesButton = document.querySelector("#devices");
 const connection = document.querySelector("#connection");
 const stageStatus = document.querySelector("#stage-status");
+const stageBadge = document.querySelector("#stage-badge");
+const audioSignal = document.querySelector("#signal-audio");
+const providerSignal = document.querySelector("#signal-provider");
+const translationSignal = document.querySelector("#signal-translation");
+const viewerSignal = document.querySelector("#signal-viewers");
 const startButton = document.querySelector("#start");
 const stopButton = document.querySelector("#stop");
 const audienceLink = document.querySelector("#audience-link");
@@ -23,6 +34,8 @@ let reconnectTimer = null;
 let capture = null;
 let desired = false;
 let starting = false;
+let fileStarting = false;
+let fileRunning = false;
 let sampleBuffer = [];
 let samplePosition = 0;
 let pcmBuffer = [];
@@ -41,6 +54,70 @@ function setAudienceMessage(key, values = {}) {
 
 const wsUrl = (path) => `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}${path}`;
 const selectedStage = () => stageSelect.value;
+
+function syncSourceControls() {
+  const testFileMode = sourceModeSelect.value === "file";
+  liveInputControls.hidden = testFileMode;
+  testFileControls.hidden = !testFileMode;
+  deviceSelect.disabled = testFileMode;
+  devicesButton.disabled = testFileMode;
+  testFileInput.disabled = fileStarting || fileRunning;
+  document.querySelector("#choose-test-file").disabled = fileStarting || fileRunning;
+  sourceModeSelect.disabled = desired || starting || fileStarting || fileRunning;
+  if (fileStarting || fileRunning) stageSelect.disabled = true;
+  startButton.disabled = desired || starting || fileStarting || fileRunning
+    || (testFileMode && !testFileInput.files.length);
+  stopButton.disabled = fileStarting || !(desired || fileRunning);
+}
+
+function fileErrorKey(status) {
+  return { 400: "emptyTestFile", 409: "stageBusy", 413: "testFileTooLarge", 415: "unsupportedTestFile" }[status]
+    || "testFileStartFailed";
+}
+
+async function startTestFile() {
+  const file = testFileInput.files[0];
+  if (!file || fileStarting || fileRunning || !selectedStage()) return;
+  fileStarting = true;
+  syncSourceControls();
+  setConnection("uploadingTestFile");
+  try {
+    const url = `/api/stages/${encodeURIComponent(selectedStage())}/test-file?filename=${encodeURIComponent(file.name)}`;
+    const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: file });
+    if (!response.ok) {
+      setConnection(fileErrorKey(response.status), { status: response.status });
+      return;
+    }
+    fileRunning = true;
+    setConnection("testFileStreaming");
+  } catch (_error) {
+    setConnection("testFileNetworkError");
+  } finally {
+    fileStarting = false;
+    if (!fileRunning) stageSelect.disabled = false;
+    syncSourceControls();
+    updateStatus();
+  }
+}
+
+async function stopTestFile() {
+  if (!fileRunning || fileStarting) return;
+  fileStarting = true;
+  syncSourceControls();
+  try {
+    const response = await fetch(`/api/stages/${encodeURIComponent(selectedStage())}/stop`, { method: "POST" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    fileRunning = false;
+    stageSelect.disabled = false;
+    setConnection("stageStopped");
+  } catch (error) {
+    setConnection("stopFailed", { error: error.message });
+  } finally {
+    fileStarting = false;
+    syncSourceControls();
+    updateStatus();
+  }
+}
 
 async function refreshDevices() {
   const selected = deviceSelect.value || localStorage.getItem("stagepulse-device") || "";
@@ -177,12 +254,14 @@ async function startCapture() {
     localStorage.setItem("stagepulse-active", "1");
     await refreshDevices();
     connectAudio();
+    syncSourceControls();
   } catch (error) {
     setConnection("captureError", { error: error.message });
     await releaseCapture();
     startButton.disabled = false;
   } finally {
     starting = false;
+    syncSourceControls();
   }
 }
 
@@ -196,6 +275,7 @@ async function stopCapture() {
   stageSelect.disabled = false;
   startButton.disabled = false;
   stopButton.disabled = true;
+  syncSourceControls();
   try {
     const response = await fetch(`/api/stages/${encodeURIComponent(selectedStage())}/stop`, { method: "POST" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -244,6 +324,29 @@ async function updateStatus() {
     const response = await fetch(`/api/stages/${encodeURIComponent(selectedStage())}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const status = await response.json();
+    if (!desired && !fileStarting && status.source_mode === "test_file"
+        && ["starting", "running"].includes(status.state) && !fileRunning) {
+      sourceModeSelect.value = "file";
+      fileRunning = true;
+      setConnection("testFileStreaming");
+      syncSourceControls();
+    } else if (fileRunning && ["completed", "failed", "stopped"].includes(status.state)) {
+      fileRunning = false;
+      stageSelect.disabled = false;
+      setConnection(status.state === "completed" ? "testFileCompleted"
+        : status.state === "failed" ? "testFileFailed" : "stageStopped");
+      syncSourceControls();
+    }
+    stageBadge.textContent = stateText(status.state);
+    stageBadge.dataset.state = status.state;
+    audioSignal.textContent = t(status.audio_receiving ? "yes" : "no");
+    audioSignal.dataset.state = status.audio_receiving ? "connected" : "waiting";
+    providerSignal.textContent = t(status.provider_connected ? "yes" : "no");
+    providerSignal.dataset.state = status.provider_connected ? "connected" : "waiting";
+    translationSignal.textContent = status.translation_status
+      ? t(status.translation_status === "delayed" ? "translationDelayed" : "translationOk") : "—";
+    translationSignal.dataset.state = status.translation_status || "waiting";
+    viewerSignal.textContent = String(status.viewers);
     stageStatus.textContent = t("stageStatus", {
       state: stateText(status.state),
       connections: status.connections,
@@ -264,9 +367,22 @@ stageSelect.onchange = (event) => {
   updateStatus();
 };
 deviceSelect.onchange = () => localStorage.setItem("stagepulse-device", deviceSelect.value);
-document.querySelector("#devices").onclick = enableDevices;
-startButton.onclick = startCapture;
-stopButton.onclick = stopCapture;
+devicesButton.onclick = enableDevices;
+sourceModeSelect.onchange = syncSourceControls;
+document.querySelector("#choose-test-file").onclick = () => testFileInput.click();
+testFileInput.onchange = () => {
+  const file = testFileInput.files[0];
+  if (file) {
+    testFileName.removeAttribute("data-i18n");
+    testFileName.textContent = file.name;
+  } else {
+    testFileName.dataset.i18n = "noFileSelected";
+    testFileName.textContent = t("noFileSelected");
+  }
+  syncSourceControls();
+};
+startButton.onclick = () => sourceModeSelect.value === "file" ? startTestFile() : startCapture();
+stopButton.onclick = () => fileRunning ? stopTestFile() : stopCapture();
 document.querySelector("#copy-audience-url").onclick = async () => {
   try {
     await navigator.clipboard.writeText(audienceUrl.value);
@@ -282,6 +398,7 @@ initI18n(() => {
   stageStatus.textContent = t("stageStatusInitial");
   updateStatus();
 });
+syncSourceControls();
 
 try {
   const response = await fetch("/api/stages");

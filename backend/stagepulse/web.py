@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import tempfile
 from dataclasses import asdict
 from datetime import datetime, timezone
 from io import BytesIO
@@ -16,11 +18,13 @@ from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from qrcode.image.svg import SvgPathImage
 
-from .audio import BrowserAudioSource
+from .audio import BrowserAudioSource, FileAudioSource
 from .manager import StageManager
 
 
 FRONTEND = Path(__file__).resolve().parents[2] / "frontend"
+MAX_TEST_FILE_BYTES = 100 * 1024 * 1024
+TEST_FILE_SUFFIXES = {".wav", ".mp3", ".m4a", ".flac", ".ogg", ".mp4", ".mov", ".webm"}
 
 
 def create_app(manager: StageManager, public_base_url: str | None = None) -> FastAPI:
@@ -41,7 +45,22 @@ def create_app(manager: StageManager, public_base_url: str | None = None) -> Fas
     app.mount("/static", StaticFiles(directory=FRONTEND), name="static")
     audio_sockets: dict[str, WebSocket] = {}
     disconnect_tasks: dict[str, asyncio.Task] = {}
+    uploaded_files: dict[str, Path] = {}
     locks = {stage_id: asyncio.Lock() for stage_id in manager.workers}
+
+    def discard_uploaded_file(stage_id: str, path: Path) -> None:
+        if uploaded_files.get(stage_id) != path:
+            return
+        uploaded_files.pop(stage_id)
+        path.unlink(missing_ok=True)
+        worker = manager.workers[stage_id]
+        if isinstance(worker.audio, FileAudioSource) and worker.audio.path == path:
+            worker.audio = FileAudioSource(worker.config.audio_file)
+
+    async def discard_when_finished(stage_id: str, path: Path) -> None:
+        await manager.workers[stage_id].wait()
+        async with locks[stage_id]:
+            discard_uploaded_file(stage_id, path)
 
     def audience_url(request: Request, stage_id: str) -> dict:
         if stage_id not in manager.workers:
@@ -60,6 +79,9 @@ def create_app(manager: StageManager, public_base_url: str | None = None) -> Fas
         payload["viewers"] = manager.bus.subscriber_count(stage_id)
         payload["connection_count"] = payload["connections"]
         payload["provider_connected"] = payload["provider_status"] == "connected"
+        payload["source_mode"] = "test_file" if stage_id in uploaded_files else (
+            "live_input" if isinstance(manager.workers[stage_id].audio, BrowserAudioSource) else None
+        )
         now = datetime.now(timezone.utc)
         last_audio = payload["last_audio_at"]
         payload["audio_receiving"] = bool(
@@ -143,9 +165,47 @@ def create_app(manager: StageManager, public_base_url: str | None = None) -> Fas
             source = manager.workers[stage_id].audio
             if isinstance(source, BrowserAudioSource):
                 source.close()
+            uploaded = uploaded_files.get(stage_id)
+            if uploaded is not None:
+                discard_uploaded_file(stage_id, uploaded)
             socket = audio_sockets.pop(stage_id, None)
             if socket is not None:
                 await socket.close()
+        return status_payload(stage_id)
+
+    @app.post("/api/stages/{stage_id}/test-file")
+    async def start_test_file(stage_id: str, request: Request, filename: str) -> dict:
+        if stage_id not in manager.workers:
+            raise HTTPException(404, "Unknown stage")
+        suffix = Path(filename).suffix.lower()
+        if suffix not in TEST_FILE_SUFFIXES:
+            raise HTTPException(415, "Unsupported audio or video file extension")
+        async with locks[stage_id]:
+            worker = manager.workers[stage_id]
+            if stage_id in audio_sockets or worker.status.state in {"starting", "running"}:
+                raise HTTPException(409, "Stage already has an active audio source")
+            previous = uploaded_files.get(stage_id)
+            if previous is not None:
+                discard_uploaded_file(stage_id, previous)
+            fd, name = tempfile.mkstemp(prefix="stagepulse-test-", suffix=suffix)
+            path = Path(name)
+            size = 0
+            try:
+                with os.fdopen(fd, "wb") as output:
+                    async for chunk in request.stream():
+                        size += len(chunk)
+                        if size > MAX_TEST_FILE_BYTES:
+                            raise HTTPException(413, "Test file exceeds the 100 MB limit")
+                        output.write(chunk)
+                if not size:
+                    raise HTTPException(400, "Test file is empty")
+                worker.audio = FileAudioSource(path)
+                manager.start(stage_id)
+                uploaded_files[stage_id] = path
+                asyncio.create_task(discard_when_finished(stage_id, path))
+            except BaseException:
+                path.unlink(missing_ok=True)
+                raise
         return status_payload(stage_id)
 
     @app.websocket("/ws/stages/{stage_id}/audio")

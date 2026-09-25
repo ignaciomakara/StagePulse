@@ -4,6 +4,7 @@ const stageId = decodeURIComponent(location.pathname.split("/").at(-1));
 const connection = document.querySelector("#connection");
 const captionElement = document.querySelector("#captions");
 const languageSelect = document.querySelector("#language");
+const MAX_RECENT_CAPTIONS = 3;
 const histories = {
   en: { finalLines: [], preview: "" },
   es: { finalLines: [], preview: "" },
@@ -16,26 +17,34 @@ let connectionMessage = { key: "connecting", values: {} };
 function setConnection(key, values = {}) {
   connectionMessage = { key, values };
   connection.textContent = t(key, values);
+  connection.dataset.state = key === "captionsConnected" ? "connected"
+    : key === "captionsReconnecting" ? "reconnecting"
+      : key === "stageUnavailable" ? "error" : "waiting";
 }
 
 function render() {
   captionElement.replaceChildren();
+  captionElement.dataset.state = connectionMessage.key === "captionsReconnecting"
+    ? "reconnecting" : "connected";
   const history = histories[languageSelect.value];
   if (!history.finalLines.length && !history.preview) {
     const line = document.createElement("p");
+    line.className = "empty-caption";
     line.textContent = t(connectionMessage.key === "captionsReconnecting"
       ? "captionsReconnecting" : "waitingForCaptions");
     captionElement.append(line);
     return;
   }
-  for (const text of history.finalLines) {
+  const visibleFinals = history.preview ? history.finalLines.slice(-2) : history.finalLines;
+  for (const [index, text] of visibleFinals.entries()) {
     const line = document.createElement("p");
+    line.className = history.preview || index < visibleFinals.length - 1 ? "previous" : "current";
     line.textContent = text;
     captionElement.append(line);
   }
   if (history.preview) {
     const line = document.createElement("p");
-    line.className = "preview";
+    line.className = "current preview";
     line.textContent = history.preview;
     captionElement.append(line);
   }
@@ -70,7 +79,7 @@ function connect() {
     const history = histories[event.language];
     if (event.is_final) {
       history.finalLines.push(event.text);
-      if (history.finalLines.length > 5) history.finalLines.shift();
+      if (history.finalLines.length > MAX_RECENT_CAPTIONS) history.finalLines.shift();
       history.preview = "";
     } else {
       history.preview = event.text;

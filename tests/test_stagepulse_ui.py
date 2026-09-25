@@ -18,6 +18,19 @@ class UiLanguageTests(unittest.TestCase):
             keys[language] = set(re.findall(r"^  (\w+):", source, flags=re.MULTILINE))
         self.assertEqual(keys["en"], keys["es"])
 
+    def test_visible_html_translation_keys_exist_in_both_catalogs(self) -> None:
+        catalogs = {
+            language: set(re.findall(
+                r"^  (\w+):", (FRONTEND / "locales" / f"{language}.js").read_text(encoding="utf-8"),
+                flags=re.MULTILINE,
+            )) for language in ("en", "es")
+        }
+        for page in ("stage", "audience", "control"):
+            html = (FRONTEND / f"{page}.html").read_text(encoding="utf-8")
+            keys = set(re.findall(r'data-i18n(?:-alt|-aria-label)?="(\w+)"', html))
+            for language in ("en", "es"):
+                self.assertFalse(keys - catalogs[language], (page, language, keys - catalogs[language]))
+
     def test_visible_interface_controls_are_separate_from_caption_language(self) -> None:
         for page in ("stage", "audience", "control"):
             html = (FRONTEND / f"{page}.html").read_text(encoding="utf-8")
