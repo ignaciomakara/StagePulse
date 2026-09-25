@@ -50,6 +50,39 @@ on the stage computer or HTTPS. For mobile viewers on the same network, start
 the server with `--host 0.0.0.0` and open its LAN address. This minimal server
 has no authentication; keep it on a trusted local network.
 
+## Production views
+
+- `/stage` captures the selected stage audio once and shows original and Spanish captions.
+- `/audience/{stage_id}` shows shared captions with an Original/Spanish selector,
+  connection status, automatic reconnect, and a Fullscreen button.
+- `/control` polls existing stage status once per second and lists every configured
+  stage, its actual provider/audio/caption state and subscriber count, and links
+  to the stage, audience, and overlay views. Viewers do not open Gemini sessions.
+- `/overlay/{stage_id}?lang=original` and `?lang=es` show the selected live
+  caption on a transparent page. Captions clear after 15 seconds without an
+  update. The overlay uses the same caption WebSocket as Audience View.
+
+Stage Console shows a QR and copyable audience link. By default, its URL uses
+the browser request's origin. A QR built from localhost works only on the stage
+computer; Stage Console warns when this happens. For audience phones on a LAN,
+set `STAGEPULSE_PUBLIC_BASE_URL` to the origin reachable from those phones,
+for example `http://192.168.1.20:8000`, and run the server on a reachable
+interface. This variable must be an HTTP(S) origin without a path. If using
+HTTPS through a reverse proxy, set it to the public HTTPS origin. The QR is
+generated locally and does not use a third-party QR service.
+
+```powershell
+$env:STAGEPULSE_PUBLIC_BASE_URL = "http://192.168.1.20:8000"
+.\.venv\Scripts\python.exe backend\serve.py --host 0.0.0.0
+```
+
+In **vMix**, add a Browser Input using the full overlay URL, set its size to
+1920×1080, and layer it over the program feed. In **OBS**, add a Browser Source
+with the same URL, width 1920 and height 1080. Choose `lang=original` or
+`lang=es` for the output. The overlay background is transparent and captions
+sit in the lower safe area. Each overlay and audience viewer subscribes to the
+same stage bus; adding or closing viewers does not create Gemini connections.
+
 ## Long-running Live Translate sessions
 
 Live Translate enables session resumption and sliding-window context compression.

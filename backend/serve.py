@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 
 import uvicorn
@@ -32,7 +33,12 @@ def main() -> None:
     manager = StageManager.from_file(
         args.config, api_key, debug_reconnect_after=args.debug_reconnect_after
     )
-    uvicorn.run(create_app(manager), host=args.host, port=args.port, access_log=False)
+    uvicorn.run(
+        create_app(manager, public_base_url=os.getenv("STAGEPULSE_PUBLIC_BASE_URL")),
+        host=args.host,
+        port=args.port,
+        access_log=False,
+    )
 
 
 if __name__ == "__main__":

@@ -48,6 +48,10 @@ function connect() {
 }
 
 languageSelect.onchange = render;
+document.querySelector("#fullscreen").onclick = async () => {
+  if (document.fullscreenElement) await document.exitFullscreen();
+  else await document.documentElement.requestFullscreen();
+};
 try {
   const response = await fetch(`/api/stages/${encodeURIComponent(stageId)}`);
   if (!response.ok) throw new Error(`HTTP ${response.status}`);

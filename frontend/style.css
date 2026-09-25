@@ -6,7 +6,7 @@ h1 { margin: 0; }
 h2 { font-size: 1.15rem; }
 .controls { display: flex; align-items: end; gap: .75rem; flex-wrap: wrap; }
 label { display: grid; gap: .3rem; }
-select, button { font: inherit; padding: .6rem; border: 1px solid #64748b; border-radius: .4rem; }
+select, button, input { font: inherit; padding: .6rem; border: 1px solid #64748b; border-radius: .4rem; }
 button { cursor: pointer; }
 button:disabled { cursor: default; opacity: .5; }
 a { color: #90cdf4; padding: .6rem; }
@@ -18,3 +18,21 @@ article { background: #202b3a; border-radius: .5rem; padding: 1rem; }
 .captions .preview { color: #bac6d4; }
 .audience { max-width: 850px; }
 .audience-captions { margin-top: 1rem; font-size: clamp(2rem, 5vw, 3.5rem); }
+.audience-share { margin: 1rem 0; max-width: 36rem; }
+.audience-share img { display: block; background: white; margin: .5rem 0; }
+.audience-share input { width: 100%; box-sizing: border-box; }
+.audience-share p { color: #cbd5e1; }
+.stage-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 350px), 1fr)); gap: 1rem; }
+.stage-card { background: #202b3a; border-radius: .5rem; padding: 1rem; }
+.stage-indicator { font-weight: 700; }
+.stage-indicator[data-state="running/connected"] { color: #86efac; }
+.stage-indicator[data-state="attention"] { color: #fcd34d; }
+.stage-indicator[data-state="stopped/error"] { color: #fca5a5; }
+.stage-card dl { display: grid; grid-template-columns: minmax(9rem, 1fr) 1fr; gap: .4rem; }
+.stage-card dt { color: #cbd5e1; }
+.stage-card dd { margin: 0; overflow-wrap: anywhere; }
+.stage-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem; }
+.overlay-root, .overlay-page { background: transparent; color: white; }
+.overlay-caption { position: fixed; left: 7.5vw; right: 7.5vw; bottom: 8vh; min-height: 1px; text-align: center; font-size: clamp(2rem, 4.2vw, 5.5rem); font-weight: 700; line-height: 1.2; text-wrap: balance; text-shadow: 0 2px 6px black, 0 0 18px black; overflow-wrap: anywhere; }
+.overlay-caption.preview { opacity: .85; }
+@media (max-width: 600px) { main { padding: 1rem; } .audience-captions { font-size: clamp(2rem, 8vw, 3.5rem); } }

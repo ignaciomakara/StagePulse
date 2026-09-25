@@ -7,6 +7,9 @@ const stageStatus = document.querySelector("#stage-status");
 const startButton = document.querySelector("#start");
 const stopButton = document.querySelector("#stop");
 const audienceLink = document.querySelector("#audience-link");
+const audienceUrl = document.querySelector("#audience-url");
+const audienceQr = document.querySelector("#audience-qr");
+const audienceWarning = document.querySelector("#audience-warning");
 const views = {
   en: createCaptionView(document.querySelector("#original"), "en"),
   es: createCaptionView(document.querySelector("#translated"), "es"),
@@ -189,6 +192,25 @@ async function stopCapture() {
   }
 }
 
+async function updateAudienceLink() {
+  const stageId = selectedStage();
+  if (!stageId) return;
+  try {
+    const response = await fetch(`/api/stages/${encodeURIComponent(stageId)}/audience-link`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const link = await response.json();
+    if (stageId !== selectedStage()) return;
+    audienceLink.href = link.url;
+    audienceUrl.value = link.url;
+    audienceQr.src = `/api/stages/${encodeURIComponent(stageId)}/audience-qr.svg`;
+    audienceWarning.textContent = link.local_only
+      ? "This localhost QR cannot be opened from another device. Set STAGEPULSE_PUBLIC_BASE_URL to a reachable LAN or HTTPS origin."
+      : "Share this QR with the audience.";
+  } catch (error) {
+    audienceWarning.textContent = `Audience link unavailable: ${error.message}`;
+  }
+}
+
 function connectCaptions() {
   captionGeneration++;
   const generation = captionGeneration;
@@ -217,9 +239,9 @@ async function updateStatus() {
   }
 }
 
-stageSelect.onchange = () => {
-  localStorage.setItem("stagepulse-stage", selectedStage());
-  audienceLink.href = `/audience/${encodeURIComponent(selectedStage())}`;
+stageSelect.onchange = (event) => {
+  if (event) localStorage.setItem("stagepulse-stage", selectedStage());
+  updateAudienceLink();
   views.en.clear();
   views.es.clear();
   connectCaptions();
@@ -229,6 +251,14 @@ deviceSelect.onchange = () => localStorage.setItem("stagepulse-device", deviceSe
 document.querySelector("#devices").onclick = enableDevices;
 startButton.onclick = startCapture;
 stopButton.onclick = stopCapture;
+document.querySelector("#copy-audience-url").onclick = async () => {
+  try {
+    await navigator.clipboard.writeText(audienceUrl.value);
+    audienceWarning.textContent = "Audience link copied.";
+  } catch (error) {
+    audienceWarning.textContent = `Copy failed: ${error.message}`;
+  }
+};
 
 try {
   const response = await fetch("/api/stages");
@@ -241,11 +271,14 @@ try {
     stageSelect.append(option);
   }
   const saved = localStorage.getItem("stagepulse-stage");
-  if (stages.some((stage) => stage.stage_id === saved)) stageSelect.value = saved;
+  const requested = new URLSearchParams(location.search).get("stage");
+  if (stages.some((stage) => stage.stage_id === requested)) stageSelect.value = requested;
+  else if (stages.some((stage) => stage.stage_id === saved)) stageSelect.value = saved;
+  const resumeActiveStage = localStorage.getItem("stagepulse-active") === "1" && selectedStage() === saved;
   stageSelect.onchange();
   await refreshDevices();
   setInterval(updateStatus, 1000);
-  if (localStorage.getItem("stagepulse-active") === "1") startCapture();
+  if (resumeActiveStage) startCapture();
 } catch (error) {
   connection.textContent = `Cannot load stages: ${error.message}`;
 }

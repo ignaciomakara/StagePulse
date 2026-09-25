@@ -43,6 +43,69 @@ class BrowserAudioSourceTests(unittest.IsolatedAsyncioTestCase):
 
 
 class WebBridgeTests(unittest.TestCase):
+    def test_production_routes_and_audience_qr(self) -> None:
+        configs = [
+            StageConfig(stage_id, stage_id.title(), "en", "es", Path("unused.wav"))
+            for stage_id in ("main", "community", "third")
+        ]
+        manager = StageManager(configs, "unit-test-placeholder")
+        with TestClient(create_app(manager, public_base_url="https://captions.example.test")) as client:
+            self.assertEqual(client.get("/control").status_code, 200)
+            self.assertIn("/api/stages", client.get("/static/control.js").text)
+            self.assertEqual(len(client.get("/api/stages").json()), 3)
+            self.assertEqual(client.get("/overlay/main?lang=original").status_code, 200)
+            self.assertEqual(client.get("/overlay/main?lang=es").status_code, 200)
+            self.assertEqual(client.get("/overlay/main?lang=fr").status_code, 422)
+            self.assertEqual(client.get("/overlay/unknown?lang=es").status_code, 404)
+            self.assertIn('get("lang") === "es"', client.get("/static/overlay.js").text)
+            link = client.get("/api/stages/main/audience-link").json()
+            self.assertEqual(link, {
+                "url": "https://captions.example.test/audience/main",
+                "local_only": False,
+            })
+            qr = client.get("/api/stages/main/audience-qr.svg")
+            self.assertEqual(qr.status_code, 200)
+            self.assertIn("image/svg+xml", qr.headers["content-type"])
+            self.assertIn("<svg", qr.text)
+            self.assertEqual(client.get("/api/stages/unknown/audience-qr.svg").status_code, 404)
+        with TestClient(create_app(manager)) as client:
+            local = client.get("/api/stages/main/audience-link").json()
+            self.assertEqual(local["url"], "http://testserver/audience/main")
+            self.assertFalse(local["local_only"])
+            localhost = client.get(
+                "/api/stages/main/audience-link", headers={"host": "127.0.0.1:8000"}
+            ).json()
+            self.assertTrue(localhost["local_only"])
+        with self.assertRaises(ValueError):
+            create_app(manager, public_base_url="file:///not-a-public-origin")
+
+    def test_overlay_and_audience_share_caption_bus_without_provider_start(self) -> None:
+        from datetime import datetime, timezone
+
+        from stagepulse.models import CaptionEvent
+
+        manager = StageManager(
+            [StageConfig("main", "Main", "en", "es", Path("unused.wav"))],
+            "unit-test-placeholder",
+        )
+        worker = manager.workers["main"]
+        with TestClient(create_app(manager)) as client:
+            with client.websocket_connect("/ws/stages/main/captions") as audience:
+                with client.websocket_connect("/ws/stages/main/captions") as overlay_en:
+                    with client.websocket_connect("/ws/stages/main/captions") as overlay_es:
+                        self.assertEqual(client.get("/api/stages/main").json()["viewers"], 3)
+                        for language, text in (("en", "DOS works."), ("es", "DOS funciona.")):
+                            manager.bus.publish(CaptionEvent(
+                                stage_id="main", language=language, text=text,
+                                is_final=True, timestamp=datetime.now(timezone.utc),
+                                provider="unit-test-provider",
+                            ))
+                            for subscriber in (audience, overlay_en, overlay_es):
+                                event = subscriber.receive_json()
+                                self.assertEqual((event["language"], event["text"]), (language, text))
+                        self.assertEqual(worker.status.connections, 0)
+                        self.assertEqual(worker.status.state, "created")
+
     def test_reconnect_and_viewers_reuse_one_worker(self) -> None:
         class CountingProvider:
             name = "local-test-provider"

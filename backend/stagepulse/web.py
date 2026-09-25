@@ -5,11 +5,16 @@ from __future__ import annotations
 import asyncio
 from dataclasses import asdict
 from datetime import datetime, timezone
+from io import BytesIO
 from pathlib import Path
+from typing import Literal
+from urllib.parse import quote, urlsplit
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, RedirectResponse
+import qrcode
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from qrcode.image.svg import SvgPathImage
 
 from .audio import BrowserAudioSource
 from .manager import StageManager
@@ -18,12 +23,35 @@ from .manager import StageManager
 FRONTEND = Path(__file__).resolve().parents[2] / "frontend"
 
 
-def create_app(manager: StageManager) -> FastAPI:
+def create_app(manager: StageManager, public_base_url: str | None = None) -> FastAPI:
+    if public_base_url:
+        parsed = urlsplit(public_base_url)
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.netloc
+            or parsed.path not in {"", "/"}
+            or parsed.query
+            or parsed.fragment
+            or parsed.username
+            or parsed.password
+        ):
+            raise ValueError("STAGEPULSE_PUBLIC_BASE_URL must be an HTTP(S) origin")
+        public_base_url = public_base_url.rstrip("/")
     app = FastAPI(title="StagePulse")
     app.mount("/static", StaticFiles(directory=FRONTEND), name="static")
     audio_sockets: dict[str, WebSocket] = {}
     disconnect_tasks: dict[str, asyncio.Task] = {}
     locks = {stage_id: asyncio.Lock() for stage_id in manager.workers}
+
+    def audience_url(request: Request, stage_id: str) -> dict:
+        if stage_id not in manager.workers:
+            raise HTTPException(404, "Unknown stage")
+        origin = public_base_url or str(request.base_url).rstrip("/")
+        host = urlsplit(origin).hostname
+        return {
+            "url": f"{origin}/audience/{quote(stage_id, safe='')}",
+            "local_only": host in {"localhost", "127.0.0.1", "::1", "0.0.0.0"},
+        }
 
     def status_payload(stage_id: str) -> dict:
         payload = asdict(manager.status(stage_id))
@@ -66,6 +94,32 @@ def create_app(manager: StageManager) -> FastAPI:
         if stage_id not in manager.workers:
             raise HTTPException(404, "Unknown stage")
         return FileResponse(FRONTEND / "audience.html")
+
+    @app.get("/control")
+    def control_room() -> FileResponse:
+        return FileResponse(FRONTEND / "control.html")
+
+    @app.get("/overlay/{stage_id}")
+    def overlay(stage_id: str, lang: Literal["original", "es"] = "original") -> FileResponse:
+        if stage_id not in manager.workers:
+            raise HTTPException(404, "Unknown stage")
+        return FileResponse(FRONTEND / "overlay.html")
+
+    @app.get("/api/stages/{stage_id}/audience-link")
+    def audience_link(stage_id: str, request: Request) -> dict:
+        return audience_url(request, stage_id)
+
+    @app.get("/api/stages/{stage_id}/audience-qr.svg")
+    def audience_qr(stage_id: str, request: Request) -> Response:
+        url = audience_url(request, stage_id)["url"]
+        qr = qrcode.make(url, image_factory=SvgPathImage, border=4)
+        output = BytesIO()
+        qr.save(output)
+        return Response(
+            output.getvalue(),
+            media_type="image/svg+xml",
+            headers={"Cache-Control": "no-store"},
+        )
 
     @app.get("/api/stages")
     def stages() -> list[dict]:
