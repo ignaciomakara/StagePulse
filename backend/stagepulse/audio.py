@@ -6,7 +6,7 @@ import asyncio
 import shutil
 from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import Protocol
+from typing import Callable, Protocol
 
 
 SAMPLE_RATE = 16_000
@@ -25,6 +25,7 @@ class BrowserAudioSource:
         self._queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=64)
         self._closed = False
         self._buffered_bytes = 0
+        self.on_chunk: Callable[[bytes], None] | None = None
 
     def feed(self, pcm: bytes) -> None:
         if self._closed:
@@ -36,6 +37,8 @@ class BrowserAudioSource:
         try:
             self._queue.put_nowait(pcm)
             self._buffered_bytes += len(pcm)
+            if self.on_chunk is not None:
+                self.on_chunk(pcm)
         except asyncio.QueueFull as exc:
             raise RuntimeError("Browser audio buffer is full; check the audio connection") from exc
 
@@ -59,6 +62,7 @@ class FileAudioSource:
 
     def __init__(self, path: Path) -> None:
         self.path = path
+        self.on_chunk: Callable[[bytes], None] | None = None
 
     async def chunks(self) -> AsyncIterator[bytes]:
         if not self.path.is_file():
@@ -91,6 +95,8 @@ class FileAudioSource:
         stderr_task = asyncio.create_task(process.stderr.read())
         try:
             while chunk := await process.stdout.read(CHUNK_BYTES):
+                if self.on_chunk is not None:
+                    self.on_chunk(chunk)
                 yield chunk
             return_code = await process.wait()
             detail = (await stderr_task).decode(errors="replace").strip()

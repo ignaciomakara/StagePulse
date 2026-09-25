@@ -30,6 +30,7 @@ class CaptionAssembler:
         self._last_preview_at = 0.0
         self._last_preview = ""
         self._last_fragment = ""
+        self.last_decision = ""
 
     @staticmethod
     def _clean(text: str) -> str:
@@ -37,7 +38,11 @@ class CaptionAssembler:
 
     def fragment(self, text: str, now: float) -> list[CaptionUnit]:
         text = self._clean(text)
-        if not text or text.casefold() == self._last_fragment.casefold():
+        if not text:
+            self.last_decision = "empty_fragment"
+            return []
+        if text.casefold() == self._last_fragment.casefold():
+            self.last_decision = "duplicate_fragment"
             return []
         self._last_fragment = text
         if not self._buffer:
@@ -49,6 +54,7 @@ class CaptionAssembler:
     def interim_snapshot(self, text: str, now: float) -> list[CaptionUnit]:
         text = self._clean(text)
         if not text:
+            self.last_decision = "empty_interim"
             return []
         if not self._buffer:
             self._started_at = now
@@ -64,6 +70,7 @@ class CaptionAssembler:
         self._buffer = ""
         self._last_preview = ""
         self._last_fragment = ""
+        self.last_decision = "final" if text else "empty_buffer"
         return [CaptionUnit(text, True)] if text else []
 
     def _ready(self, now: float) -> list[CaptionUnit]:
@@ -83,7 +90,14 @@ class CaptionAssembler:
         ):
             self._last_preview = text
             self._last_preview_at = now
+            self.last_decision = "preview"
             return [CaptionUnit(text, False)]
+        if len(text) < 24:
+            self.last_decision = "buffered_short"
+        elif text == self._last_preview:
+            self.last_decision = "unchanged_preview"
+        else:
+            self.last_decision = "preview_throttled"
         return []
 
 
@@ -116,19 +130,29 @@ class CaptionSubscription:
 
 
 class CaptionBus:
-    """Publish each stage event to every current in-process subscriber."""
+    """Publish live events and seed new subscribers with each language's latest event."""
 
     def __init__(self) -> None:
         self._subscribers: dict[str, set[CaptionSubscription]] = defaultdict(set)
+        self._latest: dict[str, dict[str, CaptionEvent]] = defaultdict(dict)
 
     def subscribe(self, stage_id: str) -> CaptionSubscription:
         subscription = CaptionSubscription(self, stage_id)
+        for event in sorted(
+            self._latest.get(stage_id, {}).values(), key=lambda item: item.timestamp
+        ):
+            subscription._put(event)
         self._subscribers[stage_id].add(subscription)
         return subscription
 
     def publish(self, event: CaptionEvent) -> None:
+        self._latest[event.stage_id][event.language] = event
         for subscription in tuple(self._subscribers.get(event.stage_id, ())):
             subscription._put(event)
+
+    def clear_latest(self, stage_id: str) -> None:
+        """Prevent a restarted stage from replaying captions from its prior run."""
+        self._latest.pop(stage_id, None)
 
     def subscriber_count(self, stage_id: str) -> int:
         return len(self._subscribers.get(stage_id, ()))

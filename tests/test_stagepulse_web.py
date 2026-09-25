@@ -106,6 +106,23 @@ class WebBridgeTests(unittest.TestCase):
                         self.assertEqual(worker.status.connections, 0)
                         self.assertEqual(worker.status.state, "created")
 
+    def test_late_audience_websocket_receives_current_caption(self) -> None:
+        from datetime import datetime, timezone
+        from stagepulse.models import CaptionEvent
+
+        manager = StageManager(
+            [StageConfig("main", "Main", "en", "es", Path("unused.wav"))],
+            "unit-test-placeholder",
+        )
+        manager.bus.publish(CaptionEvent(
+            "main", "es", "DOS funciona.", True,
+            datetime.now(timezone.utc), "unit-test-provider",
+        ))
+        with TestClient(create_app(manager)) as client:
+            with client.websocket_connect("/ws/stages/main/captions") as late:
+                self.assertEqual(late.receive_json()["text"], "DOS funciona.")
+                self.assertEqual(manager.status("main").connections, 0)
+
     def test_reconnect_and_viewers_reuse_one_worker(self) -> None:
         class CountingProvider:
             name = "local-test-provider"

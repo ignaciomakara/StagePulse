@@ -19,6 +19,12 @@ function setConnection(key, values = {}) {
 function render() {
   captionElement.replaceChildren();
   const history = histories[languageSelect.value];
+  if (!history.finalLines.length && !history.preview) {
+    const line = document.createElement("p");
+    line.textContent = t("waitingForCaptions");
+    captionElement.append(line);
+    return;
+  }
   for (const text of history.finalLines) {
     const line = document.createElement("p");
     line.textContent = text;
@@ -56,7 +62,10 @@ function connect() {
 }
 
 languageSelect.onchange = render;
-initI18n(() => setConnection(connectionMessage.key, connectionMessage.values));
+initI18n(() => {
+  setConnection(connectionMessage.key, connectionMessage.values);
+  render();
+});
 document.querySelector("#fullscreen").onclick = async () => {
   if (document.fullscreenElement) await document.exitFullscreen();
   else await document.documentElement.requestFullscreen();

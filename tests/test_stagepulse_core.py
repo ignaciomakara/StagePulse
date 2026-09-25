@@ -70,6 +70,35 @@ class StageCoordinationTests(unittest.IsolatedAsyncioTestCase):
         second.close()
         other.close()
 
+    async def test_late_subscriber_gets_only_latest_caption_per_language(self) -> None:
+        bus = CaptionBus()
+        def event(language: str, text: str) -> CaptionEvent:
+            return CaptionEvent(
+                "main", language, text, True, datetime.now(timezone.utc), "provider"
+            )
+
+        old_en = event("en", "Old English")
+        latest_en = event("en", "Current English")
+        latest_es = event("es", "Español actual")
+        bus.publish(old_en)
+        bus.publish(latest_en)
+        bus.publish(latest_es)
+        late = bus.subscribe("main")
+        self.assertEqual(
+            {late.queue.get_nowait(), late.queue.get_nowait()},
+            {latest_en, latest_es},
+        )
+        self.assertTrue(late.queue.empty())
+        live = event("es", "Español en vivo")
+        bus.publish(live)
+        self.assertIs(late.queue.get_nowait(), live)
+        late.close()
+
+        bus.clear_latest("main")
+        restarted = bus.subscribe("main")
+        self.assertTrue(restarted.queue.empty())
+        restarted.close()
+
     async def test_three_stages_are_created_from_configuration(self) -> None:
         configs = [
             StageConfig(

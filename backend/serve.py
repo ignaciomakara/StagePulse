@@ -30,6 +30,7 @@ def main() -> None:
     parser.add_argument("--config", type=Path, default=ROOT / "config/stages.gate3.json")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--diagnostics", action="store_true", help="Emit benchmark trace with caption text")
     parser.add_argument(
         "--debug-reconnect-after",
         type=float,
@@ -40,7 +41,8 @@ def main() -> None:
     if not api_key:
         parser.error("GEMINI_API_KEY is missing from the project .env file")
     manager = StageManager.from_file(
-        args.config, api_key, debug_reconnect_after=args.debug_reconnect_after
+        args.config, api_key, debug_reconnect_after=args.debug_reconnect_after,
+        diagnostics=args.diagnostics,
     )
     uvicorn.run(
         create_app(manager, public_base_url=public_base_url),

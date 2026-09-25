@@ -23,12 +23,14 @@ async def run(
     stop_stage: str | None,
     stop_after: float,
     debug_reconnect_after: float | None,
+    diagnostics: bool = False,
 ) -> int:
     api_key = dotenv_values(ROOT / ".env").get("GEMINI_API_KEY")
     if not api_key:
         raise ValueError(f"GEMINI_API_KEY is missing from {ROOT / '.env'}")
     manager = StageManager.from_file(
-        config_path, api_key, debug_reconnect_after=debug_reconnect_after
+        config_path, api_key, debug_reconnect_after=debug_reconnect_after,
+        diagnostics=diagnostics,
     )
     if stop_stage is not None and stop_stage not in manager.workers:
         raise ValueError(f"Unknown stage: {stop_stage}")
@@ -131,6 +133,7 @@ def main() -> int:
         "--config", type=Path, default=ROOT / "config" / "stages.gate3.json"
     )
     parser.add_argument("--stop-stage", help="Stop one configured stage independently")
+    parser.add_argument("--diagnostics", action="store_true", help="Emit benchmark trace with caption text")
     parser.add_argument("--stop-after", type=float, default=20.0)
     parser.add_argument(
         "--debug-reconnect-after",
@@ -147,6 +150,7 @@ def main() -> int:
                 args.stop_stage,
                 args.stop_after,
                 args.debug_reconnect_after,
+                args.diagnostics,
             )
         )
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as exc:

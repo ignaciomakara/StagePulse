@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 
 from .audio import AudioSource
 from .captions import CaptionAssembler, CaptionBus
+from .diagnostics import StageDiagnostics
 from .models import CaptionEvent, StageConfig, StageStatus
 from .providers import CaptionProvider, ProviderTranscript
 from .terminology import TerminologyNormalizer
@@ -21,12 +22,14 @@ class StageWorker:
         provider: CaptionProvider,
         bus: CaptionBus,
         api_key: str,
+        diagnostics: StageDiagnostics | None = None,
     ) -> None:
         self.config = config
         self.audio = audio
         self.provider = provider
         self.bus = bus
         self._api_key = api_key
+        self.diagnostics = diagnostics
         self._state = "created"
         self._error: str | None = None
         self._connections = 0
@@ -83,6 +86,11 @@ class StageWorker:
         self._session_started_at = datetime.now(timezone.utc)
         self._connection_started_at = None
         self._last_caption_at = None
+        self.bus.clear_latest(self.config.stage_id)
+        if self.diagnostics is not None:
+            self.audio.on_chunk = lambda pcm: self.diagnostics.record(
+                "pcm", bytes=len(pcm)
+            )
         self._task = asyncio.create_task(self._run())
 
     async def stop(self) -> None:
@@ -109,6 +117,14 @@ class StageWorker:
     def _on_transcript(self, fragment: ProviderTranscript) -> None:
         assembler = self._assemblers.setdefault(fragment.language, CaptionAssembler())
         now = time.monotonic()
+        raw_received_at = None
+        if self.diagnostics is not None:
+            raw_received_at = self.diagnostics.record(
+                "provider_raw" if fragment.kind != "boundary" else "provider_boundary",
+                language=fragment.language,
+                kind=fragment.kind,
+                text=fragment.text,
+            )
         if fragment.kind == "fragment":
             units = assembler.fragment(fragment.text, now)
         elif fragment.kind == "interim":
@@ -119,37 +135,46 @@ class StageWorker:
             units = assembler.flush()
         else:
             raise ValueError(f"Unknown provider transcript kind: {fragment.kind}")
-        for unit in units:
-            timestamp = datetime.now(timezone.utc)
-            self._last_caption_at = timestamp
-            self.bus.publish(
-                CaptionEvent(
-                    stage_id=self.config.stage_id,
-                    language=fragment.language,
-                    text=self._terminology.apply(fragment.language, unit.text),
-                    is_final=unit.is_final,
-                    timestamp=timestamp,
-                    provider=self.provider.name,
-                )
+        if self.diagnostics is not None:
+            self.diagnostics.record(
+                "assembler", language=fragment.language, kind=fragment.kind,
+                decision=assembler.last_decision, produced=len(units),
             )
+        for unit in units:
+            self._publish(fragment.language, unit.text, unit.is_final, raw_received_at)
+
+    def _publish(
+        self, language: str, text: str, is_final: bool,
+        raw_received_at: float | None = None,
+    ) -> None:
+        timestamp = datetime.now(timezone.utc)
+        self._last_caption_at = timestamp
+        caption = CaptionEvent(
+            stage_id=self.config.stage_id,
+            language=language,
+            text=self._terminology.apply(language, text),
+            is_final=is_final,
+            timestamp=timestamp,
+            provider=self.provider.name,
+        )
+        self.bus.publish(caption)
+        if self.diagnostics is not None:
+            published_at = self.diagnostics.record(
+                "bus_publish", language=language, is_final=is_final,
+                text=caption.text,
+            )
+            if raw_received_at is not None:
+                self.diagnostics.record(
+                    "provider_to_bus", language=language,
+                    seconds=published_at - raw_received_at,
+                )
 
     async def _run(self) -> None:
         try:
             await self.provider.run(self.audio, self._on_transcript, self._connected)
             for language, assembler in self._assemblers.items():
                 for unit in assembler.flush():
-                    timestamp = datetime.now(timezone.utc)
-                    self._last_caption_at = timestamp
-                    self.bus.publish(
-                        CaptionEvent(
-                            stage_id=self.config.stage_id,
-                            language=language,
-                            text=self._terminology.apply(language, unit.text),
-                            is_final=unit.is_final,
-                            timestamp=timestamp,
-                            provider=self.provider.name,
-                        )
-                    )
+                    self._publish(language, unit.text, unit.is_final)
             self._state = "completed"
         except asyncio.CancelledError:
             self._state = "stopped"
@@ -161,3 +186,5 @@ class StageWorker:
             if handle:
                 detail = detail.replace(handle, "[REDACTED_HANDLE]")
             self._error = detail or exc.__class__.__name__
+            if self.diagnostics is not None:
+                self.diagnostics.record("stage_error", detail=self._error)

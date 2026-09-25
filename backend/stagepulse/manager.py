@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .audio import FileAudioSource
 from .captions import CaptionBus
+from .diagnostics import StageDiagnostics
 from .models import StageConfig, StageStatus
 from .providers import GeminiLiveTranslateProvider, GeminiTranscribeProvider
 from .stage import StageWorker
@@ -18,6 +19,7 @@ class StageManager:
         configs: list[StageConfig],
         api_key: str,
         debug_reconnect_after: float | None = None,
+        diagnostics: bool = False,
     ) -> None:
         if not api_key:
             raise ValueError("GEMINI_API_KEY is required")
@@ -50,6 +52,7 @@ class StageManager:
                 provider,
                 self.bus,
                 api_key,
+                StageDiagnostics(config.stage_id) if diagnostics else None,
             )
 
     @classmethod
@@ -58,6 +61,7 @@ class StageManager:
         path: Path,
         api_key: str,
         debug_reconnect_after: float | None = None,
+        diagnostics: bool = False,
     ) -> StageManager:
         path = path.resolve()
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -75,7 +79,7 @@ class StageManager:
                     terminology=item.get("terminology"),
                 )
             )
-        return cls(configs, api_key, debug_reconnect_after)
+        return cls(configs, api_key, debug_reconnect_after, diagnostics)
 
     def start(self, stage_id: str) -> None:
         self.workers[stage_id].start()
