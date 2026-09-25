@@ -9,6 +9,8 @@ const histories = {
   es: { finalLines: [], preview: "" },
 };
 let socket = null;
+let reconnectTimer = null;
+let stageReady = false;
 let connectionMessage = { key: "connecting", values: {} };
 
 function setConnection(key, values = {}) {
@@ -21,7 +23,8 @@ function render() {
   const history = histories[languageSelect.value];
   if (!history.finalLines.length && !history.preview) {
     const line = document.createElement("p");
-    line.textContent = t("waitingForCaptions");
+    line.textContent = t(connectionMessage.key === "captionsReconnecting"
+      ? "captionsReconnecting" : "waitingForCaptions");
     captionElement.append(line);
     return;
   }
@@ -38,11 +41,30 @@ function render() {
   }
 }
 
+function clearCaptions() {
+  for (const history of Object.values(histories)) {
+    history.finalLines.length = 0;
+    history.preview = "";
+  }
+  render();
+}
+
 function connect() {
+  if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
+  if (reconnectTimer !== null) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  if (socket) {
+    setConnection("captionsReconnecting");
+    clearCaptions();
+  }
   const protocol = location.protocol === "https:" ? "wss" : "ws";
-  socket = new WebSocket(`${protocol}://${location.host}/ws/stages/${encodeURIComponent(stageId)}/captions`);
-  socket.onopen = () => { setConnection("captionsConnected"); };
-  socket.onmessage = ({ data }) => {
+  const current = new WebSocket(`${protocol}://${location.host}/ws/stages/${encodeURIComponent(stageId)}/captions`);
+  socket = current;
+  current.onopen = () => { if (socket === current) { setConnection("captionsConnected"); render(); } };
+  current.onmessage = ({ data }) => {
+    if (socket !== current) return;
     const event = JSON.parse(data);
     if (!(event.language in histories)) return;
     const history = histories[event.language];
@@ -55,11 +77,21 @@ function connect() {
     }
     render();
   };
-  socket.onclose = () => {
-    setConnection("captionsDisconnected");
-    setTimeout(connect, 1200);
+  current.onclose = () => {
+    if (socket !== current) return;
+    setConnection("captionsReconnecting");
+    clearCaptions();
+    reconnectTimer = setTimeout(connect, 1200);
   };
 }
+
+function reconnectOnReturn() {
+  if (stageReady && document.visibilityState === "visible") connect();
+}
+
+document.addEventListener("visibilitychange", reconnectOnReturn);
+window.addEventListener("pageshow", reconnectOnReturn);
+window.addEventListener("online", reconnectOnReturn);
 
 languageSelect.onchange = render;
 initI18n(() => {
@@ -75,6 +107,7 @@ try {
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const stage = await response.json();
   document.querySelector("#stage-title").textContent = stage.name;
+  stageReady = true;
   connect();
 } catch (error) {
   setConnection("stageUnavailable", { error: error.message });

@@ -48,6 +48,7 @@ export default {
   fullscreen: "Fullscreen",
   connecting: "Connecting…",
   captionsConnected: "Captions connected",
+  captionsReconnecting: "Reconnecting...",
   waitingForCaptions: "Waiting for captions...",
   captionsDisconnected: "Captions disconnected. Reconnecting…",
   stageUnavailable: "Stage unavailable: {{error}}",

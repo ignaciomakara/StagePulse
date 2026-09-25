@@ -48,6 +48,7 @@ export default {
   fullscreen: "Pantalla completa",
   connecting: "Conectando…",
   captionsConnected: "Subtítulos conectados",
+  captionsReconnecting: "Reconectando...",
   waitingForCaptions: "Esperando subtítulos...",
   captionsDisconnected: "Subtítulos desconectados. Reconectando…",
   stageUnavailable: "Escenario no disponible: {{error}}",

@@ -28,7 +28,8 @@ class UiLanguageTests(unittest.TestCase):
 
     def test_audience_waiting_message_has_both_languages(self) -> None:
         audience = (FRONTEND / "audience.js").read_text(encoding="utf-8")
-        self.assertIn('t("waitingForCaptions")', audience)
+        self.assertIn('"waitingForCaptions"', audience)
+        self.assertIn('"captionsReconnecting"', audience)
         self.assertIn('waitingForCaptions: "Waiting for captions..."',
                       (FRONTEND / "locales/en.js").read_text(encoding="utf-8"))
         self.assertIn('waitingForCaptions: "Esperando subtítulos..."',
