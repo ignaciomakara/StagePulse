@@ -42,20 +42,14 @@ The existing health API now exposes `translation_stall_active`, `translation_sta
 
 BROWSER recovery 4 exposed a distinct failure: PCM continued at normal intervals and 684 chunks were sent to Gemini, with nontrivial RMS throughout the 60 s, but the connected session delivered only five raw EN and five raw ES events. First raw EN arrived at 22.615 s; the first published EN caption appeared at 40.604 s. Audience was blank through the 40 s checkpoint. The longest raw gaps were 17.989 s EN and 16.458 s ES. This was **not** a translation-only stall because EN was absent too; the detector correctly did not trigger. The cause of this provider/session output deficit is unknown. It shows that translation-stall health does not measure overall caption coverage. No recovery action occurred, so this deficit cannot be attributed to the debug flag.
 
-## Validation and reproduction
+## Validation and historical reproduction
 
 Seven synthetic detector/lifecycle tests cover positive detection, initial ES absence, silence, audio end, disconnection, single recovery request, and EN/ES in the same provider response. They are explicitly separate from real Gemini evidence. The full unit suite, `compileall`, JavaScript syntax checks, and `git diff --check` were run after implementation.
 
+The historical file script requires the ignored local 60-second WAV at its expected path:
+
 ```powershell
 .venv\Scripts\python.exe tests\manual_gate75_file.py
-.venv\Scripts\python.exe backend\serve.py --diagnostics
-# Start isolated headless Chrome CDP on port 9236, then in another terminal:
-$profilePath = Join-Path $env:TEMP 'stagepulse-gate76-chrome'
-Start-Process -FilePath 'C:\Program Files\Google\Chrome\Application\chrome.exe' -ArgumentList @('--headless=new','--remote-debugging-port=9236','--remote-allow-origins=*',"--user-data-dir=$profilePath",'--use-fake-ui-for-media-stream','--autoplay-policy=no-user-gesture-required','http://127.0.0.1:8000/stage') -WindowStyle Hidden
-.venv\Scripts\python.exe tests\manual_gate76_browser.py
-# For a separate debug recovery run, restart the server with:
-.venv\Scripts\python.exe backend\serve.py --diagnostics --recover-translation-stall
-.venv\Scripts\python.exe tests\manual_gate76_report.py --table benchmarks\gate76\file-diagnostic.log benchmarks\gate76\browser-baseline-1.log benchmarks\gate76\browser-recovery-1.log
 ```
 
-The fixed WAV is embedded in the manual file and browser scripts. Each BROWSER run requires Chrome CDP on port 9236, Stereo Mix, and Realtek output device 20 on this test machine. Device indexes may differ elsewhere. These runs cannot estimate a population-level stall rate or prove recovery effectiveness.
+The browser script for this gate now selects configured `gran-sala` but still requires Chrome CDP, Stereo Mix, and an output-device index from the original test setup. Repeating it requires adapting local device selection. The separate file script uses an isolated `main` fixture. The report script needs ignored trace logs that are not distributed in Git. Use the [README Test File flow](../README.md#test-with-a-local-audio-file) for the current demo. These runs cannot estimate a population-level stall rate or prove recovery effectiveness.

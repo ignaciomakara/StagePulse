@@ -22,7 +22,7 @@ SAMPLE = ROOT / "samples/nerdearla-freedos-60s.wav"
 
 
 def stage_status() -> dict:
-    return httpx.get(f"{BASE}/api/stages/main", timeout=5).json()
+    return httpx.get(f"{BASE}/api/stages/gran-sala", timeout=5).json()
 
 
 async def frame_eval(page: Page, expression: str):
@@ -51,22 +51,22 @@ async def main() -> None:
         raise FileNotFoundError(SAMPLE)
     iframe_url = "http://127.0.0.1:8020/iframe_check.html?origin=http://127.0.0.1:8019"
     async with (
-        Page(new_tab(9239, BASE + "/stage")) as stage,
+        Page(new_tab(9239, BASE + "/stage?stage=gran-sala")) as stage,
         Page(new_tab(9239, BASE + "/audience")) as hub,
-        Page(new_tab(9239, BASE + "/audience/main")) as audience,
-        Page(new_tab(9239, BASE + "/display/main?lang=es")) as display_es,
-        Page(new_tab(9239, BASE + "/display/main?lang=both")) as display_both,
-        Page(new_tab(9239, BASE + "/overlay/main?lang=es")) as overlay,
+        Page(new_tab(9239, BASE + "/audience/gran-sala")) as audience,
+        Page(new_tab(9239, BASE + "/display/gran-sala?lang=es")) as display_es,
+        Page(new_tab(9239, BASE + "/display/gran-sala?lang=both")) as display_both,
+        Page(new_tab(9239, BASE + "/overlay/gran-sala?lang=es")) as overlay,
         Page(new_tab(9239, BASE + "/control")) as control,
         Page(new_tab(9239, iframe_url)) as iframe_page,
     ):
         await asyncio.sleep(2)
-        assert await hub.evaluate("document.querySelectorAll('.hub-stage').length") == 2
-        assert await hub.evaluate("document.querySelector('.hub-stage h2').textContent") == "Main Stage"
+        assert await hub.evaluate("document.querySelectorAll('.hub-stage').length") == 3
+        assert await hub.evaluate("document.querySelector('.hub-stage h2').textContent") == "Gran sala"
         assert await frame_eval(iframe_page, "document.querySelector('h1').textContent") == "Choose your stage"
-        await frame_eval(iframe_page, "document.querySelector('.hub-stage[href=\"/audience/main\"]').click()")
+        await frame_eval(iframe_page, "document.querySelector('.hub-stage[href=\"/audience/gran-sala\"]').click()")
         await asyncio.sleep(1)
-        assert await frame_eval(iframe_page, "document.querySelector('#stage-title').textContent") == "Main Stage"
+        assert await frame_eval(iframe_page, "document.querySelector('#stage-title').textContent") == "Gran sala"
         print("Cross-origin iframe: hub loaded, stage selected", flush=True)
 
         await stage.evaluate("document.querySelector('#source-mode').value='file';document.querySelector('#source-mode').dispatchEvent(new Event('change'))")
@@ -104,8 +104,8 @@ async def main() -> None:
             print("ES:", values["console_es"], flush=True)
             print("Gemini connections:", status["connections"], "caption subscribers:", status["viewers"], flush=True)
             assert await hub.evaluate("document.querySelector('.hub-stage .stage-indicator').textContent") == "Live"
-            assert await control.evaluate("document.querySelector('.stage-card h2').textContent") == "Main Stage"
-            print("Hub Main Stage status: Live; Control Room stage present", flush=True)
+            assert await control.evaluate("document.querySelector('.stage-card h2').textContent") == "Gran sala"
+            print("Hub Gran sala status: Live; Control Room stage present", flush=True)
 
             await command(display_both, "Emulation.setDeviceMetricsOverride", {
                 "width": 1920, "height": 1080, "deviceScaleFactor": 1, "mobile": False,
@@ -119,7 +119,7 @@ async def main() -> None:
             await hub.evaluate("document.querySelector('#ui-language').value='es';document.querySelector('#ui-language').dispatchEvent(new Event('change'))")
             await asyncio.sleep(0.5)
             assert await hub.evaluate("document.querySelector('h1').textContent") == "Elegí tu escenario"
-            assert await hub.evaluate("document.querySelector('.hub-stage h2').textContent") == "Main Stage"
+            assert await hub.evaluate("document.querySelector('.hub-stage h2').textContent") == "Gran sala"
             print("Hub Spanish UI and configured stage name verified", flush=True)
 
             await display_both.evaluate("location.reload()")

@@ -22,7 +22,7 @@ async def main() -> None:
         print("Stage Start:", await stage.evaluate("document.querySelector('#start').textContent"), flush=True)
         print("Stage UI:", await stage.evaluate("document.querySelector('#ui-language').value"), flush=True)
         print("QR warning:", await stage.evaluate("document.querySelector('#audience-warning').textContent"), flush=True)
-        audience_target = new_tab(PORT, f"{BASE}/audience/main")
+        audience_target = new_tab(PORT, f"{BASE}/audience/gran-sala")
         control_target = new_tab(PORT, f"{BASE}/control")
         async with Page(audience_target) as audience, Page(control_target) as control:
             await asyncio.sleep(2)

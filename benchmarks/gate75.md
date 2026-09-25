@@ -29,7 +29,7 @@ In BROWSER 1, the raw ES gap was **16.995 seconds** (39.546–56.541 seconds fro
 
 The FILE maximum publication gaps occurred after the 60-second PCM input ended, before the final flush at the provider drain deadline. There were no raw events in those windows; they do not show a missing live translation during speech.
 
-The configured `response_modalities=["AUDIO"]`, `input_audio_transcription`, `output_audio_transcription`, and `translation_config.target_language_code="es"` match the current [Google Live Translate documentation](https://ai.google.dev/gemini-api/docs/live-api/live-translate) and the installed `google-genai 2.25.0` SDK fields. The [model page](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-live-translate-preview) still lists the configured model. No model, provider setting, or assembler threshold changed.
+At the time of this Gate 7.5 check, the configured `response_modalities=["AUDIO"]`, `input_audio_transcription`, `output_audio_transcription`, and `translation_config.target_language_code="es"` were checked against the [Google Live Translate documentation](https://ai.google.dev/gemini-api/docs/live-api/live-translate) and the installed `google-genai 2.25.0` SDK. This is a historical compatibility observation, not a promise of future model availability. No model, provider setting, or assembler threshold changed during that gate.
 
 Both published languages contained `DOS` and `WordPerfect` in every measured run. This is an occurrence check, not an accuracy score. The existing terminology normalizer may have changed `Word Perfect` to `WordPerfect` in published captions.
 
@@ -49,16 +49,12 @@ The translation pipeline received **no behavioral correction**, so a translation
 
 The browser test used a physical Realtek output and Stereo Mix on this machine. It does not prove behavior on another audio device, in another network environment, or for arbitrary live speech. No WER or speech-to-caption latency was calculated.
 
-## Reproduction and validation
+## Historical reproduction and validation
+
+The file script below creates its own isolated `main` fixture and requires the ignored local 60-second WAV at its expected path. The browser script now selects configured `gran-sala`, but still assumes a localized Stereo Mix device label and an output-device index from the original test machine; it is a historical benchmark, not the current demo smoke test. Repeating it requires adapting local audio-device selection. The [README Test File flow](../README.md#test-with-a-local-audio-file) is the supported evaluator path. The report script additionally needs ignored local trace logs that are not distributed in Git.
 
 ```powershell
 .venv\Scripts\python.exe tests\manual_gate75_file.py
-.venv\Scripts\python.exe backend\serve.py --diagnostics
-# In another terminal, with Stereo Mix available:
-$profilePath = Join-Path $env:TEMP 'stagepulse-gate75-chrome'
-Start-Process -FilePath 'C:\Program Files\Google\Chrome\Application\chrome.exe' -ArgumentList @('--headless=new','--remote-debugging-port=9235','--remote-allow-origins=*',"--user-data-dir=$profilePath",'--use-fake-ui-for-media-stream','--autoplay-policy=no-user-gesture-required','http://127.0.0.1:8000/stage') -WindowStyle Hidden
-.venv\Scripts\python.exe tests\manual_gate75_browser.py
-.venv\Scripts\python.exe tests\manual_gate75_report.py --table benchmarks\gate75\file-1.log benchmarks\gate75\browser-2.log
 ```
 
 The full suite passed with 25 tests on its final run; `compileall`, JavaScript syntax checks, and `git diff --check` also passed. One preceding full-suite run intermittently raised `CancelledError` while an existing WebSocket test closed; that test and the full suite passed on immediate rerun, with no production-path failure observed. The benchmark scripts make real Gemini requests and do not mock transcription or translation.

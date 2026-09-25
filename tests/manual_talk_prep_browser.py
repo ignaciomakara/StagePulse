@@ -22,7 +22,7 @@ SAMPLE = ROOT / "samples/nerdearla-freedos-60s.wav"
 
 
 def status() -> dict:
-    return httpx.get(f"{BASE}/api/stages/main", timeout=5).json()
+    return httpx.get(f"{BASE}/api/stages/gran-sala", timeout=5).json()
 
 
 async def latest(page: Page, selector: str) -> str:
@@ -32,7 +32,7 @@ async def latest(page: Page, selector: str) -> str:
 async def main() -> None:
     if not SAMPLE.is_file():
         raise FileNotFoundError(SAMPLE)
-    async with Page(new_tab(9239, BASE + "/stage")) as stage:
+    async with Page(new_tab(9239, BASE + "/stage?stage=gran-sala")) as stage:
         await asyncio.sleep(2)
         await stage.evaluate(
             "document.querySelector('#talk-title').value='30 years of open source with the FreeDOS Project';"
@@ -65,19 +65,19 @@ async def main() -> None:
         await stage.evaluate("document.querySelector('#apply-terms').click()")
         for _ in range(10):
             await asyncio.sleep(0.5)
-            applied = httpx.get(f"{BASE}/api/stages/main/talk-prep", timeout=5).json()
+            applied = httpx.get(f"{BASE}/api/stages/gran-sala/talk-prep", timeout=5).json()
             if applied["terms"]:
                 break
         assert applied["terms"], applied
         assert all(term["canonical"] != "Jim Hall" for term in applied["terms"])
-        assert httpx.get(f"{BASE}/api/stages/community/talk-prep", timeout=5).json()["terms"] == []
+        assert httpx.get(f"{BASE}/api/stages/auditorio/talk-prep", timeout=5).json()["terms"] == []
         print("Applied after operator review:", applied, flush=True)
 
         async with (
-            Page(new_tab(9239, BASE + "/audience/main")) as audience,
-            Page(new_tab(9239, BASE + "/display/main?lang=both")) as display,
-            Page(new_tab(9239, BASE + "/overlay/main?lang=es")) as overlay,
-            websockets.connect("ws://127.0.0.1:8019/ws/stages/main/captions") as captions,
+            Page(new_tab(9239, BASE + "/audience/gran-sala")) as audience,
+            Page(new_tab(9239, BASE + "/display/gran-sala?lang=both")) as display,
+            Page(new_tab(9239, BASE + "/overlay/gran-sala?lang=es")) as overlay,
+            websockets.connect("ws://127.0.0.1:8019/ws/stages/gran-sala/captions") as captions,
         ):
             await asyncio.sleep(1)
             await stage.evaluate(
@@ -119,7 +119,7 @@ async def main() -> None:
                             print("Preparation controls disabled while running:", await stage.evaluate(
                                 "document.querySelector('#apply-terms').disabled"
                             ), flush=True)
-                            conflict = httpx.post(f"{BASE}/api/stages/main/talk-prep", json={"terms": []}, timeout=5)
+                            conflict = httpx.post(f"{BASE}/api/stages/gran-sala/talk-prep", json={"terms": []}, timeout=5)
                             print("Apply while running HTTP:", conflict.status_code, flush=True)
                             assert current["connections"] == 1
                             assert conflict.status_code == 409

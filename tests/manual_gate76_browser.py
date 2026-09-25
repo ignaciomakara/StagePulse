@@ -18,7 +18,7 @@ BASE = "http://127.0.0.1:8000"
 
 
 def status() -> dict:
-    return httpx.get(f"{BASE}/api/stages/main", timeout=5).json()
+    return httpx.get(f"{BASE}/api/stages/gran-sala", timeout=5).json()
 
 
 async def text(page: Page, selector: str) -> str:
@@ -29,7 +29,7 @@ async def main(port: int) -> None:
     target = next(item for item in targets(port) if item.get("url") == f"{BASE}/stage")
     async with AsyncExitStack() as stack:
         console = await stack.enter_async_context(Page(target))
-        audience = await stack.enter_async_context(Page(new_tab(port, f"{BASE}/audience/main")))
+        audience = await stack.enter_async_context(Page(new_tab(port, f"{BASE}/audience/gran-sala")))
         control = await stack.enter_async_context(Page(new_tab(port, f"{BASE}/control")))
         await console.evaluate("document.querySelector('#devices').click()")
         await asyncio.sleep(3)
@@ -42,7 +42,7 @@ async def main(port: int) -> None:
             "document.querySelector('#language').dispatchEvent(new Event('change'))"
         )
         await console.evaluate(
-            "document.querySelector('#stage').value='main';"
+            "document.querySelector('#stage').value='gran-sala';"
             "document.querySelector('#stage').dispatchEvent(new Event('change'));"
             f"document.querySelector('#device').value={json.dumps(selected['value'])};"
             "document.querySelector('#start').click()"

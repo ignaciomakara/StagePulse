@@ -24,7 +24,8 @@ function show(key, values = {}) {
 
 function sync() {
   const disabled = !stageId || !loaded || locked || busy;
-  for (const input of [title, speaker, abstract, suggestButton, applyButton]) input.disabled = disabled;
+  for (const input of [title, speaker, abstract, suggestButton]) input.disabled = disabled;
+  applyButton.disabled = disabled || rows.length === 0;
   addButton.disabled = disabled || rows.length >= 15;
   for (const input of list.querySelectorAll("input, button")) input.disabled = disabled;
 }
@@ -90,7 +91,6 @@ async function loadStage(nextStageId) {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const state = await response.json();
     if (requested !== stageId) return;
-    rows = state.terms.map((term) => ({ enabled: true, ...term }));
     activeCount = state.active_count;
     locked = !state.editable;
     loaded = true;
@@ -117,6 +117,8 @@ suggestButton.onclick = async () => {
     return;
   }
   const requested = stageId;
+  rows = [];
+  renderRows();
   busy = true;
   sync();
   show("prepSuggesting");
@@ -132,17 +134,9 @@ suggestButton.onclick = async () => {
     }
     const suggested = (await response.json()).terms;
     if (requested !== stageId) return;
-    const existing = new Set(rows.map((row) => row.canonical.toLocaleLowerCase()));
-    let added = 0;
-    for (const term of suggested) {
-      if (rows.length >= 15) break;
-      if (existing.has(term.canonical.toLocaleLowerCase())) continue;
-      rows.push({ enabled: true, canonical: term.canonical, variants: term.variants });
-      existing.add(term.canonical.toLocaleLowerCase());
-      added++;
-    }
+    rows = suggested.map((term) => ({ enabled: true, ...term }));
     renderRows();
-    show(added ? "prepSuggestionsReady" : "prepNoSuggestions", { count: added });
+    show(rows.length ? "prepSuggestionsReady" : "prepNoSuggestions", { count: rows.length });
   } catch (_error) {
     if (requested === stageId) show("prepSuggestionFailed");
   } finally {
@@ -182,7 +176,7 @@ applyButton.onclick = async () => {
     const state = await response.json();
     if (requested !== stageId) return;
     activeCount = state.active_count;
-    rows = state.terms.map((term) => ({ enabled: true, ...term }));
+    rows = [];
     renderRows();
     show("prepRulesActive", { count: activeCount });
   } catch (_error) {

@@ -22,7 +22,7 @@ BASE = "http://127.0.0.1:8000"
 
 
 def status() -> dict:
-    return httpx.get(f"{BASE}/api/stages/main", timeout=5).json()
+    return httpx.get(f"{BASE}/api/stages/gran-sala", timeout=5).json()
 
 
 async def main() -> None:
@@ -36,17 +36,17 @@ async def main() -> None:
         )
         selected = next(item for item in devices if "Mezcla" in item["label"])
         await console.evaluate(
-            "document.querySelector('#stage').value='main';"
+            "document.querySelector('#stage').value='gran-sala';"
             "document.querySelector('#stage').dispatchEvent(new Event('change'));"
             f"document.querySelector('#device').value={json.dumps(selected['value'])};"
             "document.querySelector('#start').click()"
         )
         await asyncio.sleep(4)
         urls = {
-            "audience_1": f"{BASE}/audience/main",
-            "audience_2": f"{BASE}/audience/main",
-            "overlay_original": f"{BASE}/overlay/main?lang=original",
-            "overlay_es": f"{BASE}/overlay/main?lang=es",
+            "audience_1": f"{BASE}/audience/gran-sala",
+            "audience_2": f"{BASE}/audience/gran-sala",
+            "overlay_original": f"{BASE}/overlay/gran-sala?lang=original",
+            "overlay_es": f"{BASE}/overlay/gran-sala?lang=es",
             "control": f"{BASE}/control",
         }
         targets_by_name = {name: new_tab(CDP_PORT, url) for name, url in urls.items()}

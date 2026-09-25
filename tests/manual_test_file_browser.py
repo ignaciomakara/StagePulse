@@ -32,7 +32,7 @@ async def command(page: Page, method: str, params: dict) -> dict:
 
 
 def status() -> dict:
-    return httpx.get(f"{BASE}/api/stages/main", timeout=5).json()
+    return httpx.get(f"{BASE}/api/stages/gran-sala", timeout=5).json()
 
 
 async def latest(page: Page, selector: str) -> str:
@@ -44,7 +44,7 @@ async def latest(page: Page, selector: str) -> str:
 async def main() -> None:
     if not SAMPLE.is_file():
         raise FileNotFoundError(SAMPLE)
-    async with Page(new_tab(CDP_PORT, BASE + "/stage")) as stage:
+    async with Page(new_tab(CDP_PORT, BASE + "/stage?stage=gran-sala")) as stage:
         await asyncio.sleep(2)
         assert await stage.evaluate("document.querySelector('h1').textContent") == "Stage Console"
         assert await stage.evaluate("document.querySelector('#source-mode option[value=file]').textContent") == "Test file"
@@ -82,7 +82,7 @@ async def main() -> None:
         if active["state"] == "failed":
             return
         try:
-            async with websockets.connect("ws://127.0.0.1:8019/ws/stages/main/audio") as audio:
+            async with websockets.connect("ws://127.0.0.1:8019/ws/stages/gran-sala/audio") as audio:
                 await audio.recv()
         except ConnectionClosed as error:
             assert error.code == 1008, error.code
@@ -95,14 +95,14 @@ async def main() -> None:
         assert await stage.evaluate("document.querySelector('#stop').disabled") is False
         print("Stage Console restored active test file after reload", flush=True)
         async with (
-            Page(new_tab(CDP_PORT, BASE + "/audience/main")) as audience_en,
-            Page(new_tab(CDP_PORT, BASE + "/audience/main")) as audience_es,
-            Page(new_tab(CDP_PORT, BASE + "/overlay/main?lang=original")) as overlay_en,
-            Page(new_tab(CDP_PORT, BASE + "/overlay/main?lang=es")) as overlay_es,
+            Page(new_tab(CDP_PORT, BASE + "/audience/gran-sala")) as audience_en,
+            Page(new_tab(CDP_PORT, BASE + "/audience/gran-sala")) as audience_es,
+            Page(new_tab(CDP_PORT, BASE + "/overlay/gran-sala?lang=original")) as overlay_en,
+            Page(new_tab(CDP_PORT, BASE + "/overlay/gran-sala?lang=es")) as overlay_es,
             Page(new_tab(CDP_PORT, BASE + "/control")) as control,
         ):
             await asyncio.sleep(1)
-            assert await audience_en.evaluate("document.querySelector('#stage-title').textContent") == "Main Stage"
+            assert await audience_en.evaluate("document.querySelector('#stage-title').textContent") == "Gran sala"
             assert await audience_en.evaluate("document.querySelector('[data-i18n=captionLanguage]').textContent") == "Idioma de los subtítulos"
             assert await control.evaluate("document.querySelector('h1').textContent") == "Sala de control"
             await audience_es.evaluate(

@@ -292,12 +292,12 @@ async function stopCapture() {
 async function updateAudienceLink() {
   const stageId = selectedStage();
   if (!stageId) return;
+  audienceLink.href = `/audience/${encodeURIComponent(stageId)}`;
   try {
     const response = await fetch(`/api/stages/${encodeURIComponent(stageId)}/audience-link`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const link = await response.json();
     if (stageId !== selectedStage()) return;
-    audienceLink.href = link.url;
     audienceUrl.value = link.url;
     audienceQr.src = `/api/stages/${encodeURIComponent(stageId)}/audience-qr.svg`;
     setAudienceMessage(link.local_only ? "audienceLocalWarning" : "audienceShare");

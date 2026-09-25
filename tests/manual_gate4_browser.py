@@ -187,7 +187,7 @@ async def main(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--cdp-port", type=int, default=9223)
-    parser.add_argument("--stage", default="main")
+    parser.add_argument("--stage", default="gran-sala")
     parser.add_argument("--device-contains", default="Mezcla estéreo")
     parser.add_argument("--no-playback", action="store_true")
     parser.add_argument("--output-device", type=int)

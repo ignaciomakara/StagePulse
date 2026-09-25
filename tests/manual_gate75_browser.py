@@ -33,7 +33,7 @@ async def main() -> None:
         )
         selected = next(item for item in devices if "Mezcla" in item["label"])
         audience = await stack.enter_async_context(
-            Page(new_tab(PORT, f"{BASE}/audience/main"))
+            Page(new_tab(PORT, f"{BASE}/audience/gran-sala"))
         )
         await asyncio.sleep(2)
         await audience.evaluate(
@@ -44,13 +44,13 @@ async def main() -> None:
             "text": await caption_text(audience, "#captions")
         }, ensure_ascii=False), flush=True)
         await console.evaluate(
-            "document.querySelector('#stage').value='main';"
+            "document.querySelector('#stage').value='gran-sala';"
             "document.querySelector('#stage').dispatchEvent(new Event('change'));"
             f"document.querySelector('#device').value={json.dumps(selected['value'])};"
             "document.querySelector('#start').click()"
         )
         for _ in range(60):
-            state = httpx.get(f"{BASE}/api/stages/main", timeout=5).json()
+            state = httpx.get(f"{BASE}/api/stages/gran-sala", timeout=5).json()
             if state["audio_receiving"]:
                 break
             await asyncio.sleep(0.1)
@@ -65,7 +65,7 @@ async def main() -> None:
                 previous = second
                 if second == 30:
                     late = await stack.enter_async_context(
-                        Page(new_tab(PORT, f"{BASE}/audience/main"))
+                        Page(new_tab(PORT, f"{BASE}/audience/gran-sala"))
                     )
                     await asyncio.sleep(2)
                     await late.evaluate(
@@ -74,9 +74,9 @@ async def main() -> None:
                     )
                     print("LATE_INITIAL " + json.dumps({
                         "text": await caption_text(late, "#captions"),
-                        "connections": httpx.get(f"{BASE}/api/stages/main", timeout=5).json()["connections"],
+                        "connections": httpx.get(f"{BASE}/api/stages/gran-sala", timeout=5).json()["connections"],
                     }, ensure_ascii=False), flush=True)
-                state = httpx.get(f"{BASE}/api/stages/main", timeout=5).json()
+                state = httpx.get(f"{BASE}/api/stages/gran-sala", timeout=5).json()
                 trace = {
                     "t": second,
                     "state": state["state"],
@@ -93,7 +93,7 @@ async def main() -> None:
             await playback
             await console.evaluate("document.querySelector('#stop').click()")
             await asyncio.sleep(2)
-            state = httpx.get(f"{BASE}/api/stages/main", timeout=5).json()
+            state = httpx.get(f"{BASE}/api/stages/gran-sala", timeout=5).json()
             print(f"RESULT state={state['state']} error={state['error']!r} "
                   f"connections={state['connections']} reconnects={state['reconnect_count']}", flush=True)
 
