@@ -32,6 +32,15 @@ class BrowserAudioSourceTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             source.feed(b"\x00")
 
+    async def test_browser_ingress_is_bounded_by_pcm_bytes(self) -> None:
+        source = BrowserAudioSource()
+        for _ in range(32):
+            source.feed(bytes(3200))
+        with self.assertRaises(RuntimeError):
+            source.feed(bytes(3200))
+        source.close()
+        self.assertEqual(len([chunk async for chunk in source.chunks()]), 32)
+
 
 class WebBridgeTests(unittest.TestCase):
     def test_reconnect_and_viewers_reuse_one_worker(self) -> None:
@@ -66,6 +75,11 @@ class WebBridgeTests(unittest.TestCase):
                         self.assertEqual(first.receive_json()["text"], "DOS funciona bien.")
                         self.assertEqual(second.receive_json()["text"], "DOS funciona bien.")
                         self.assertEqual(client.get("/api/stages/main").json()["viewers"], 2)
+                        health = client.get("/api/stages/main").json()
+                        self.assertTrue(health["browser_connected"])
+                        self.assertTrue(health["provider_connected"])
+                        self.assertEqual(health["connection_count"], 1)
+                        self.assertIsNotNone(health["last_caption_at"])
                         self.assertEqual(provider.calls, 1)
                         with self.assertRaises(WebSocketDisconnect):
                             with client.websocket_connect("/ws/stages/main/audio") as duplicate:

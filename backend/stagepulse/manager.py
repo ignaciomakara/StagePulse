@@ -13,11 +13,18 @@ from .stage import StageWorker
 
 
 class StageManager:
-    def __init__(self, configs: list[StageConfig], api_key: str) -> None:
+    def __init__(
+        self,
+        configs: list[StageConfig],
+        api_key: str,
+        debug_reconnect_after: float | None = None,
+    ) -> None:
         if not api_key:
             raise ValueError("GEMINI_API_KEY is required")
         if not configs:
             raise ValueError("At least one stage must be configured")
+        if debug_reconnect_after is not None and debug_reconnect_after <= 0:
+            raise ValueError("Debug reconnect delay must be positive")
         ids = [config.stage_id for config in configs]
         if len(set(ids)) != len(ids):
             raise ValueError("Stage IDs must be unique")
@@ -30,7 +37,10 @@ class StageManager:
                         f"Stage {config.stage_id}: Gate 3 translation supports en to es"
                     )
                 provider = GeminiLiveTranslateProvider(
-                    api_key, config.source_language, config.target_language
+                    api_key,
+                    config.source_language,
+                    config.target_language,
+                    debug_reconnect_after=debug_reconnect_after,
                 )
             else:
                 provider = GeminiTranscribeProvider(api_key, config.source_language)
@@ -43,7 +53,12 @@ class StageManager:
             )
 
     @classmethod
-    def from_file(cls, path: Path, api_key: str) -> StageManager:
+    def from_file(
+        cls,
+        path: Path,
+        api_key: str,
+        debug_reconnect_after: float | None = None,
+    ) -> StageManager:
         path = path.resolve()
         data = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(data.get("stages"), list):
@@ -59,7 +74,7 @@ class StageManager:
                     audio_file=(path.parent / item["audio_file"]).resolve(),
                 )
             )
-        return cls(configs, api_key)
+        return cls(configs, api_key, debug_reconnect_after)
 
     def start(self, stage_id: str) -> None:
         self.workers[stage_id].start()

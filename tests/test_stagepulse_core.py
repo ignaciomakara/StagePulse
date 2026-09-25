@@ -89,10 +89,11 @@ class StageCoordinationTests(unittest.IsolatedAsyncioTestCase):
     async def test_one_worker_failure_does_not_stop_another(self) -> None:
         class FailingProvider:
             name = "test-failing-provider"
+            _resume_handle = "test-sensitive-handle"
 
             async def run(self, audio, on_transcript, on_connected) -> None:
                 on_connected()
-                raise RuntimeError("provider failed")
+                raise RuntimeError("provider failed: test-sensitive-handle")
 
         class CompletingProvider:
             name = "test-completing-provider"
@@ -110,8 +111,36 @@ class StageCoordinationTests(unittest.IsolatedAsyncioTestCase):
         completing.start()
         await asyncio.gather(failing.wait(), completing.wait())
         self.assertEqual(failing.status.state, "failed")
-        self.assertEqual(failing.status.error, "provider failed")
+        self.assertEqual(failing.status.error, "provider failed: [REDACTED_HANDLE]")
         self.assertEqual(completing.status.state, "completed")
+
+    async def test_one_worker_reconnect_does_not_restart_another(self) -> None:
+        class RecoveringProvider:
+            name = "test-recovering-provider"
+
+            async def run(self, audio, on_transcript, on_connected) -> None:
+                on_connected()
+                await asyncio.sleep(0.01)
+                on_connected()
+
+        class OtherProvider:
+            name = "test-other-provider"
+
+            async def run(self, audio, on_transcript, on_connected) -> None:
+                on_connected()
+                await asyncio.sleep(0.03)
+
+        bus = CaptionBus()
+        first = StageConfig("first", "First", "en", "es", Path("unused.wav"))
+        second = StageConfig("second", "Second", "en", "es", Path("unused.wav"))
+        recovering = StageWorker(first, None, RecoveringProvider(), bus, "placeholder")
+        other = StageWorker(second, None, OtherProvider(), bus, "placeholder")
+        recovering.start()
+        other.start()
+        await asyncio.gather(recovering.wait(), other.wait())
+        self.assertEqual(recovering.status.connections, 2)
+        self.assertEqual(other.status.connections, 1)
+        self.assertEqual(other.status.state, "completed")
 
 
 if __name__ == "__main__":

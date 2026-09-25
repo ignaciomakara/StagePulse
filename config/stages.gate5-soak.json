@@ -1,0 +1,11 @@
+{
+  "stages": [
+    {
+      "id": "main",
+      "name": "Soak Stage",
+      "source_language": "en",
+      "target_language": "es",
+      "audio_file": "../samples/freedos-audio.mp3"
+    }
+  ]
+}

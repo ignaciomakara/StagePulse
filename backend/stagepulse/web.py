@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import asdict
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -27,7 +28,29 @@ def create_app(manager: StageManager) -> FastAPI:
     def status_payload(stage_id: str) -> dict:
         payload = asdict(manager.status(stage_id))
         payload["audio_connected"] = stage_id in audio_sockets
+        payload["browser_connected"] = payload["audio_connected"]
         payload["viewers"] = manager.bus.subscriber_count(stage_id)
+        payload["connection_count"] = payload["connections"]
+        payload["provider_connected"] = payload["provider_status"] == "connected"
+        now = datetime.now(timezone.utc)
+        last_audio = payload["last_audio_at"]
+        payload["audio_receiving"] = bool(
+            last_audio
+            and payload["state"] in {"starting", "running"}
+            and (now - last_audio).total_seconds() < 2
+        )
+        session_start = payload["session_started_at"]
+        connection_start = payload["connection_started_at"]
+        payload["session_age_seconds"] = (
+            round((now - session_start).total_seconds(), 1)
+            if session_start and payload["state"] in {"starting", "running"}
+            else None
+        )
+        payload["connection_age_seconds"] = (
+            round((now - connection_start).total_seconds(), 1)
+            if connection_start and payload["provider_status"] == "connected"
+            else None
+        )
         return payload
 
     @app.get("/")

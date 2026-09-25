@@ -31,6 +31,9 @@ class StageWorker:
         self._connections = 0
         self._task: asyncio.Task | None = None
         self._assemblers: dict[str, CaptionAssembler] = {}
+        self._session_started_at: datetime | None = None
+        self._connection_started_at: datetime | None = None
+        self._last_caption_at: datetime | None = None
 
     @property
     def status(self) -> StageStatus:
@@ -41,6 +44,32 @@ class StageWorker:
             provider=self.provider.name,
             connections=self._connections,
             error=self._error,
+            provider_status=getattr(
+                self.provider,
+                "provider_status",
+                "connected" if self._state == "running" else self._state,
+            ),
+            reconnect_count=getattr(self.provider, "reconnect_count", 0),
+            last_error=getattr(self.provider, "last_error", None) or self._error,
+            last_provider_event=getattr(self.provider, "last_provider_event", None),
+            last_provider_event_at=getattr(self.provider, "last_provider_event_at", None),
+            latest_resumption_handle_available=getattr(
+                self.provider, "latest_resumption_handle_available", False
+            ),
+            last_audio_at=getattr(self.provider, "last_audio_at", None),
+            last_caption_at=self._last_caption_at,
+            session_started_at=self._session_started_at,
+            connection_started_at=self._connection_started_at,
+            go_away_count=getattr(self.provider, "go_away_count", 0),
+            go_away_at=getattr(self.provider, "go_away_at", None),
+            go_away_time_left=getattr(self.provider, "go_away_time_left", None),
+            resumption_update_count=getattr(
+                self.provider, "resumption_update_count", 0
+            ),
+            forced_reconnect_count=getattr(
+                self.provider, "forced_reconnect_count", 0
+            ),
+            dropped_audio_bytes=getattr(self.provider, "dropped_audio_bytes", 0),
         )
 
     def start(self) -> None:
@@ -49,6 +78,9 @@ class StageWorker:
         self._state = "starting"
         self._error = None
         self._assemblers = {}
+        self._session_started_at = datetime.now(timezone.utc)
+        self._connection_started_at = None
+        self._last_caption_at = None
         self._task = asyncio.create_task(self._run())
 
     async def stop(self) -> None:
@@ -69,6 +101,7 @@ class StageWorker:
 
     def _connected(self) -> None:
         self._connections += 1
+        self._connection_started_at = datetime.now(timezone.utc)
         self._state = "running"
 
     def _on_transcript(self, fragment: ProviderTranscript) -> None:
@@ -85,13 +118,15 @@ class StageWorker:
         else:
             raise ValueError(f"Unknown provider transcript kind: {fragment.kind}")
         for unit in units:
+            timestamp = datetime.now(timezone.utc)
+            self._last_caption_at = timestamp
             self.bus.publish(
                 CaptionEvent(
                     stage_id=self.config.stage_id,
                     language=fragment.language,
                     text=unit.text,
                     is_final=unit.is_final,
-                    timestamp=datetime.now(timezone.utc),
+                    timestamp=timestamp,
                     provider=self.provider.name,
                 )
             )
@@ -101,13 +136,15 @@ class StageWorker:
             await self.provider.run(self.audio, self._on_transcript, self._connected)
             for language, assembler in self._assemblers.items():
                 for unit in assembler.flush():
+                    timestamp = datetime.now(timezone.utc)
+                    self._last_caption_at = timestamp
                     self.bus.publish(
                         CaptionEvent(
                             stage_id=self.config.stage_id,
                             language=language,
                             text=unit.text,
                             is_final=unit.is_final,
-                            timestamp=datetime.now(timezone.utc),
+                            timestamp=timestamp,
                             provider=self.provider.name,
                         )
                     )
@@ -118,4 +155,7 @@ class StageWorker:
         except Exception as exc:
             self._state = "failed"
             detail = str(exc).replace(self._api_key, "[REDACTED]").strip()
+            handle = getattr(self.provider, "_resume_handle", None)
+            if handle:
+                detail = detail.replace(handle, "[REDACTED_HANDLE]")
             self._error = detail or exc.__class__.__name__

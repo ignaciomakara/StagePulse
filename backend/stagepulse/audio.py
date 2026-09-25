@@ -24,14 +24,18 @@ class BrowserAudioSource:
     def __init__(self) -> None:
         self._queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=64)
         self._closed = False
+        self._buffered_bytes = 0
 
     def feed(self, pcm: bytes) -> None:
         if self._closed:
             raise RuntimeError("Browser audio source is closed")
         if not pcm or len(pcm) % 2 or len(pcm) > CHUNK_BYTES * 10:
             raise ValueError("Expected nonempty 16-bit PCM frames up to one second")
+        if self._buffered_bytes + len(pcm) > CHUNK_BYTES * 32:
+            raise RuntimeError("Browser audio buffer is full; check the audio connection")
         try:
             self._queue.put_nowait(pcm)
+            self._buffered_bytes += len(pcm)
         except asyncio.QueueFull as exc:
             raise RuntimeError("Browser audio buffer is full; check the audio connection") from exc
 
@@ -39,11 +43,14 @@ class BrowserAudioSource:
         if not self._closed:
             self._closed = True
             if self._queue.full():
-                self._queue.get_nowait()
+                removed = self._queue.get_nowait()
+                if removed is not None:
+                    self._buffered_bytes -= len(removed)
             self._queue.put_nowait(None)
 
     async def chunks(self) -> AsyncIterator[bytes]:
         while (chunk := await self._queue.get()) is not None:
+            self._buffered_bytes -= len(chunk)
             yield chunk
 
 

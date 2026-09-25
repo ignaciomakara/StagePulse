@@ -50,6 +50,29 @@ on the stage computer or HTTPS. For mobile viewers on the same network, start
 the server with `--host 0.0.0.0` and open its LAN address. This minimal server
 has no authentication; keep it on a trusted local network.
 
+## Long-running Live Translate sessions
+
+Live Translate enables session resumption and sliding-window context compression.
+StagePulse retains the latest valid resumption handle in memory and rotates the
+Gemini connection when GoAway arrives. Unexpected disconnects use short, bounded
+retries. The stage worker and its caption subscribers remain in place during a
+provider reconnect. The stage status API exposes connection and reconnect counts,
+provider state, last audio/caption timestamps, GoAway details, and whether a
+resumption handle exists; it never exposes the handle itself.
+
+The provider-side reconnect buffer holds at most 3.2 seconds of PCM
+(102,400 bytes). The browser ingress source has a separate 102,400-byte limit,
+which the provider pump continues to drain during reconnects. If the reconnect
+buffer fills, the oldest unsent audio is discarded
+and counted in `dropped_audio_bytes`. A frame already taken for sending is not
+replayed if delivery becomes uncertain, avoiding duplicate audio at the cost of
+a possible short gap. Audio and captions are not persisted.
+
+For a controlled reliability check, `backend/run_stages.py` and `backend/serve.py`
+accept `--debug-reconnect-after SECONDS`. This test-only option forces one
+provider reconnect after the specified delay and is off by default. The
+long-audio file configuration is `config/stages.gate5-soak.json`.
+
 ## Core goals
 
 - Real-time original-language transcription

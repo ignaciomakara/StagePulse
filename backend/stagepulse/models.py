@@ -41,3 +41,19 @@ class StageStatus:
     provider: str
     connections: int
     error: str | None = None
+    provider_status: str = "idle"
+    reconnect_count: int = 0
+    last_error: str | None = None
+    last_provider_event: str | None = None
+    last_provider_event_at: datetime | None = None
+    latest_resumption_handle_available: bool = False
+    last_audio_at: datetime | None = None
+    last_caption_at: datetime | None = None
+    session_started_at: datetime | None = None
+    connection_started_at: datetime | None = None
+    go_away_count: int = 0
+    go_away_at: datetime | None = None
+    go_away_time_left: str | None = None
+    resumption_update_count: int = 0
+    forced_reconnect_count: int = 0
+    dropped_audio_bytes: int = 0
