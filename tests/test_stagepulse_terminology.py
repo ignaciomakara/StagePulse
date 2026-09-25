@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -17,14 +19,27 @@ from stagepulse.terminology import TerminologyNormalizer
 
 
 class TerminologyNormalizerTests(unittest.TestCase):
-    def test_example_configuration_is_optional_per_stage(self) -> None:
-        root = Path(__file__).resolve().parents[1]
-        manager = StageManager.from_file(root / "config" / "stages.gate3.json", "unit-test-placeholder")
+    def test_configuration_terminology_is_optional_per_stage(self) -> None:
+        stages = [
+            {
+                "id": "with-terms", "name": "With terms", "source_language": "en",
+                "target_language": "es", "audio_file": "unused.wav",
+                "terminology": {"en": {"Word Perfect": "WordPerfect"}},
+            },
+            {
+                "id": "without-terms", "name": "Without terms", "source_language": "en",
+                "target_language": "es", "audio_file": "unused.wav",
+            },
+        ]
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            config_file = Path(temporary_dir) / "stages.json"
+            config_file.write_text(json.dumps({"stages": stages}), encoding="utf-8")
+            manager = StageManager.from_file(config_file, "unit-test-placeholder")
         self.assertEqual(
-            manager.workers["main"].config.terminology["en"],
+            manager.workers["with-terms"].config.terminology["en"],
             {"Word Perfect": "WordPerfect"},
         )
-        self.assertIsNone(manager.workers["community"].config.terminology)
+        self.assertIsNone(manager.workers["without-terms"].config.terminology)
 
     def test_explicit_replacement_respects_language_and_word_edges(self) -> None:
         normalizer = TerminologyNormalizer({

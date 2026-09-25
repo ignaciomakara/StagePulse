@@ -1,19 +1,22 @@
 {
   "stages": [
     {
-      "id": "main",
-      "name": "Main Stage",
+      "id": "gran-sala",
+      "name": "Gran sala",
       "source_language": "en",
       "target_language": "es",
-      "terminology": {
-        "en": {"Word Perfect": "WordPerfect"},
-        "es": {"Word Perfect": "WordPerfect"}
-      },
       "audio_file": "../samples/nerdearla-freedos-60s.wav"
     },
     {
-      "id": "community",
-      "name": "Community Stage",
+      "id": "auditorio",
+      "name": "Auditorio",
+      "source_language": "en",
+      "target_language": "es",
+      "audio_file": "../samples/nerdearla-freedos-60s.wav"
+    },
+    {
+      "id": "sala-abasto",
+      "name": "Sala Abasto",
       "source_language": "en",
       "target_language": "es",
       "audio_file": "../samples/nerdearla-freedos-60s.wav"
