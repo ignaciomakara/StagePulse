@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <title data-i18n="displayTitle">StagePulse · Venue Display</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script type="module" src="/static/display.js"></script>
+  </head>
+  <body class="display-page">
+    <main class="venue-display">
+      <header class="display-header"><div><p class="eyebrow">StagePulse / <span data-i18n="venueDisplay">Venue Display</span></p><h1 id="display-stage">StagePulse</h1></div><p id="display-status" class="status-badge" role="status" data-state="waiting" data-i18n="connecting">Connecting…</p></header>
+      <div id="display-captions" class="display-captions">
+        <section id="display-original" class="display-language" aria-label="Original" data-i18n-aria-label="original"><h2 data-i18n="original">Original</h2><p class="display-text" aria-live="polite" data-i18n="waitingForCaptions">Waiting for captions...</p></section>
+        <section id="display-spanish" class="display-language" aria-label="Spanish" data-i18n-aria-label="spanish"><h2 data-i18n="spanish">Spanish</h2><p class="display-text" aria-live="polite" data-i18n="waitingForCaptions">Waiting for captions...</p></section>
+      </div>
+    </main>
+  </body>
+</html>

@@ -4,6 +4,33 @@ StagePulse is open-source live captioning infrastructure built for the **Nerdear
 
 The project is a working local-event prototype. The English documentation is canonical; see [README.es.md](README.es.md) for the Spanish guide and [operations](docs/operations.md) for the short production checklist.
 
+## Quick Start (Windows PowerShell)
+
+```powershell
+git clone https://github.com/ignaciomakara/StagePulse.git
+cd StagePulse
+Set-ExecutionPolicy -Scope Process RemoteSigned -Force
+.\scripts\setup.ps1
+# Open .env and add your GEMINI_API_KEY
+.\scripts\doctor.ps1
+.\scripts\start.ps1
+```
+
+Open `http://127.0.0.1:8000/stage`. To get real captions without configuring a microphone or Stereo Mix, choose a configured stage, select **Audio source → Test file**, choose a local Nerdearla or other audio/video file, and press **Start**. The file is sent through the same stage worker and Gemini pipeline as live input. FFmpeg and a valid Gemini API key are required. The sample audio used during development is not included in Git; provide your own authorized file. The [manual installation steps](#manual-installation-fallback) remain available.
+
+## Product outputs
+
+| Route | Use |
+| --- | --- |
+| `/stage` | Operator console on the stage computer or mini-PC |
+| `/audience` | Attendee stage/session selector |
+| `/audience/{stage_id}` | Mobile live captions for one stage |
+| `/display/{stage_id}?lang=original`, `?lang=es`, or `?lang=both` | Venue TV, second monitor, or projector |
+| `/overlay/{stage_id}?lang=original` or `?lang=es` | Transparent vMix/OBS browser source |
+| `/control` | Production Control Room |
+
+Open `/display/{stage_id}` on the stage's second monitor or venue display. It uses the same caption stream, reconnects automatically, and defaults to both languages. StagePulse uses **one AI pipeline per active stage, not per viewer**; the number of simultaneous viewers still depends on the server and network capacity.
+
 ## Requirements
 
 - Windows and Python with `venv` (tested with Python 3.13); network access to the Gemini API.
@@ -12,7 +39,7 @@ The project is a working local-event prototype. The English documentation is can
 - FFmpeg on `PATH` for the separate file transcription tool and file-backed stage runs. Browser microphone capture does not use FFmpeg.
 - Authorized audio input at the venue. Challenge audio samples are intentionally excluded from Git.
 
-## Install and start
+## Manual installation fallback
 
 Run these commands in PowerShell from the project root:
 
@@ -30,7 +57,7 @@ Edit `.env` locally and set `GEMINI_API_KEY`. Start the server either manually o
 .\scripts\start.ps1
 ```
 
-The helper checks for `.venv`, `.env`, and a valid port before starting `backend/serve.py`. It accepts `-HostAddress`, `-Port`, and `-Config`. The manual command remains available and shows errors directly.
+The start helper checks for `.venv`, `.env`, and a valid port number before starting `backend/serve.py`. It accepts `-HostAddress`, `-Port`, and `-Config`. Run `scripts/doctor.ps1` first to check dependencies, stage configuration, and port availability. The manual command remains available and shows errors directly.
 
 ## Configure stages and terminology
 
@@ -62,7 +89,9 @@ The example is configured only for `main`; a stage without `terminology` retains
 4. Add `/overlay/{stage_id}?lang=original` or `?lang=es` to the broadcast system. In vMix, use a 1920×1080 Browser Input; in OBS, use a 1920×1080 Browser Source. The overlay has a transparent background and places captions near the lower safe area.
 5. Press **Stop** in Stage Console when the stage ends.
 
-Stage Console, Audience View, and Control Room each have a separate **UI language** selector (English/Español), saved in browser `localStorage`. It does not change the caption language. The overlay has no visible controls. The [operations guide](docs/operations.md) covers the full checklist and basic troubleshooting.
+Stage Console, Audience Hub, Audience View, and Control Room use the same **UI language** preference (English/Español), saved in browser `localStorage`. It does not change the caption language. The display and overlay have no visible controls. The [operations guide](docs/operations.md) covers the full checklist and basic troubleshooting.
+
+StagePulse can be embedded as a public HTTPS webview/iframe in an event platform. Use the `/audience` hub as the stable entry point; attendees can then open their stage. The event platform must permit embedding and WebSocket connections to the StagePulse origin. This is a generic browser embed, not an event-platform integration.
 
 ## LAN audience links
 

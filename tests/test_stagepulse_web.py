@@ -48,6 +48,33 @@ class BrowserAudioSourceTests(unittest.IsolatedAsyncioTestCase):
 
 
 class WebBridgeTests(unittest.TestCase):
+    def test_audience_hub_and_display_routes_use_configured_stages(self) -> None:
+        manager = StageManager(
+            [
+                StageConfig("main", "Main Stage", "en", "es", Path("unused.wav")),
+                StageConfig("community", "Community Stage", "en", "es", Path("unused.wav")),
+            ],
+            "unit-test-placeholder",
+        )
+        with TestClient(create_app(manager)) as client:
+            hub = client.get("/audience")
+            self.assertEqual(hub.status_code, 200)
+            self.assertIn("audience-hub.js", hub.text)
+            self.assertEqual(
+                [stage["name"] for stage in client.get("/api/stages").json()],
+                ["Main Stage", "Community Stage"],
+            )
+            for language in ("original", "es", "both"):
+                display = client.get(f"/display/main?lang={language}")
+                self.assertEqual(display.status_code, 200)
+                self.assertIn("display.js", display.text)
+                self.assertNotIn("x-frame-options", display.headers)
+                self.assertNotIn("frame-ancestors", display.headers.get("content-security-policy", ""))
+            self.assertEqual(client.get("/display/main?lang=unknown").status_code, 422)
+            self.assertEqual(client.get("/display/unknown").status_code, 404)
+            self.assertNotIn("x-frame-options", hub.headers)
+            self.assertNotIn("frame-ancestors", hub.headers.get("content-security-policy", ""))
+
     @unittest.skipUnless(which("ffmpeg"), "FFmpeg is required for file upload")
     def test_uploaded_file_uses_stage_worker_and_cleans_up(self) -> None:
         class FileProvider:

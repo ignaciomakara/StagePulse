@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <title data-i18n="hubTitle">StagePulse · Sessions</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script type="module" src="/static/audience-hub.js"></script>
+  </head>
+  <body>
+    <main class="audience-hub app-shell">
+      <header class="page-header"><div><p class="eyebrow">StagePulse / <span data-i18n="audience">Audience</span></p><h1 data-i18n="selectStage">Choose your stage</h1><p class="subtle" data-i18n="hubSubtitle">Select a live session to open its captions.</p></div><label class="ui-language-control"><span data-i18n="uiLanguage">UI language</span><select id="ui-language"><option value="en">English</option><option value="es">Español</option></select></label></header>
+      <p id="hub-status" class="status-detail" role="status" data-i18n="loadingStages">Loading stages…</p>
+      <div id="hub-stages" class="hub-stage-grid"></div>
+    </main>
+  </body>
+</html>

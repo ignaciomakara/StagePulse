@@ -123,6 +123,30 @@ button:disabled { opacity: .42; cursor: default; }
 .stage-actions { margin-top: 22px; }
 .stage-actions a, .stage-actions button { flex: 1 1 45%; }
 
+.audience-hub { max-width: 1000px; }
+.audience-hub > .status-detail { margin: 0 0 18px; }
+.hub-stage-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr)); gap: 14px; }
+.hub-stage { display: grid; gap: 9px; align-content: start; min-height: 170px; padding: 23px; border: 1px solid var(--line); border-radius: 14px; color: inherit; background: var(--surface); text-decoration: none; }
+.hub-stage:hover { border-color: var(--accent); background: var(--surface-raised); }
+.hub-stage h2 { font-size: 1.35rem; }
+.hub-stage small { color: var(--muted); font-size: .75rem; }
+.hub-stage .stage-indicator { justify-self: start; margin-top: 7px; }
+.hub-stage-label { color: var(--accent); font-size: .84rem; font-weight: 700; }
+
+.display-page { background: #071118; }
+.venue-display { display: flex; flex-direction: column; width: 100%; min-height: 100dvh; padding: clamp(28px, 4vh, 70px) clamp(30px, 5vw, 110px); }
+.display-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.display-header h1 { color: #c4d4dc; font-size: clamp(1.4rem, 2vw, 2.4rem); }
+.display-captions { display: grid; flex: 1; min-height: 0; align-content: center; }
+.display-captions[data-mode="both"] { grid-template-rows: 1fr 1fr; }
+.display-language { display: flex; flex-direction: column; justify-content: center; min-height: 0; padding: 28px 0; }
+.display-captions[data-mode="both"] .display-language:first-child { border-bottom: 1px solid #36515a; }
+.display-language h2 { margin-bottom: 14px; color: var(--accent); font-size: clamp(1rem, 1.35vw, 1.55rem); text-transform: uppercase; letter-spacing: .1em; }
+.display-text { max-height: 5em; margin: 0; overflow: hidden; color: #f4f8fa; font-size: clamp(3rem, 6vw, 7.5rem); font-weight: 750; line-height: 1.16; letter-spacing: -.035em; text-wrap: balance; overflow-wrap: anywhere; }
+.display-captions[data-mode="both"] .display-text { font-size: clamp(2.5rem, 4.3vw, 5.3rem); }
+.display-text.preview { color: #dcebee; }
+.display-text.waiting { color: var(--muted); font-size: clamp(2rem, 3vw, 3.2rem); font-weight: 500; }
+
 .overlay-root, .overlay-page { background: transparent !important; color: white; }
 .overlay-caption { position: fixed; left: 50%; bottom: max(7vh, 5vw); width: max-content; max-width: min(86vw, 1450px); max-height: 62vh; overflow: hidden; transform: translateX(-50%); padding: .18em .42em .25em; border-radius: .12em; background: rgba(5, 10, 15, .72); color: #fff; text-align: center; font-size: clamp(2rem, 4.2vw, 5.3rem); font-weight: 760; line-height: 1.18; letter-spacing: -.025em; text-wrap: balance; text-shadow: 0 2px 5px rgba(0, 0, 0, .9); overflow-wrap: anywhere; }
 .overlay-caption:empty { padding: 0; background: transparent; }
@@ -155,6 +179,10 @@ button:disabled { opacity: .42; cursor: default; }
   .audience-toolbar .button-quiet { padding: 8px 10px; }
   .audience-captions { max-width: 100%; min-height: 45vh; padding: 35px 0; font-size: clamp(2.35rem, 9.4vw, 3.25rem); line-height: 1.26; }
   .audience-captions p:nth-last-child(n+3) { display: none; }
+  .venue-display { padding: 24px 22px; }
+  .display-header .status-badge { font-size: .6rem; }
+  .display-text, .display-captions[data-mode="both"] .display-text { font-size: clamp(2.15rem, 7vw, 3.2rem); }
+  .display-language { padding: 20px 0; }
   .stage-card { padding: 18px; }
   .stage-card-header { flex-wrap: wrap; }
   .overlay-caption { max-width: 90vw; bottom: 6vh; font-size: clamp(2rem, 6.4vw, 4rem); }

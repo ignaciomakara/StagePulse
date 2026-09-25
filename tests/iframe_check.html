@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>StagePulse iframe check</title></head>
+  <body style="margin:0;background:#111;color:#eee;font:16px system-ui">
+    <p style="margin:12px">Local cross-origin iframe check: select a stage inside the frame and watch live captions.</p>
+    <iframe id="stagepulse" title="StagePulse Audience Hub" style="display:block;width:100%;height:85vh;border:1px solid #777" allow="fullscreen"></iframe>
+    <script>
+      const origin = new URLSearchParams(location.search).get("origin") || "http://127.0.0.1:8000";
+      document.querySelector("#stagepulse").src = new URL("/audience", origin).href;
+    </script>
+  </body>
+</html>

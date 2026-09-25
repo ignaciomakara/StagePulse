@@ -111,11 +111,21 @@ def create_app(manager: StageManager, public_base_url: str | None = None) -> Fas
     def stage_console() -> FileResponse:
         return FileResponse(FRONTEND / "stage.html")
 
+    @app.get("/audience")
+    def audience_hub() -> FileResponse:
+        return FileResponse(FRONTEND / "audience-hub.html")
+
     @app.get("/audience/{stage_id}")
     def audience(stage_id: str) -> FileResponse:
         if stage_id not in manager.workers:
             raise HTTPException(404, "Unknown stage")
         return FileResponse(FRONTEND / "audience.html")
+
+    @app.get("/display/{stage_id}")
+    def display(stage_id: str, lang: Literal["original", "es", "both"] = "both") -> FileResponse:
+        if stage_id not in manager.workers:
+            raise HTTPException(404, "Unknown stage")
+        return FileResponse(FRONTEND / "display.html")
 
     @app.get("/control")
     def control_room() -> FileResponse:

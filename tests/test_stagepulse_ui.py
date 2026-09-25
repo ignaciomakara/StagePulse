@@ -25,14 +25,14 @@ class UiLanguageTests(unittest.TestCase):
                 flags=re.MULTILINE,
             )) for language in ("en", "es")
         }
-        for page in ("stage", "audience", "control"):
+        for page in ("stage", "audience", "audience-hub", "display", "control"):
             html = (FRONTEND / f"{page}.html").read_text(encoding="utf-8")
             keys = set(re.findall(r'data-i18n(?:-alt|-aria-label)?="(\w+)"', html))
             for language in ("en", "es"):
                 self.assertFalse(keys - catalogs[language], (page, language, keys - catalogs[language]))
 
     def test_visible_interface_controls_are_separate_from_caption_language(self) -> None:
-        for page in ("stage", "audience", "control"):
+        for page in ("stage", "audience", "audience-hub", "control"):
             html = (FRONTEND / f"{page}.html").read_text(encoding="utf-8")
             self.assertIn('id="ui-language"', html)
         audience = (FRONTEND / "audience.html").read_text(encoding="utf-8")

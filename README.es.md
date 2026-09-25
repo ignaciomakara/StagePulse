@@ -4,6 +4,33 @@ StagePulse es una infraestructura open source de subtítulos en vivo construida 
 
 El proyecto es un prototipo funcional para eventos locales. La [documentación inglesa](README.md) es la versión canónica; consultá la [guía de operación](docs/operations.es.md) para un checklist corto.
 
+## Inicio rápido (Windows PowerShell)
+
+```powershell
+git clone https://github.com/ignaciomakara/StagePulse.git
+cd StagePulse
+Set-ExecutionPolicy -Scope Process RemoteSigned -Force
+.\scripts\setup.ps1
+# Abrí .env y agregá tu GEMINI_API_KEY
+.\scripts\doctor.ps1
+.\scripts\start.ps1
+```
+
+Abrí `http://127.0.0.1:8000/stage`. Para obtener subtítulos reales sin configurar un micrófono ni Stereo Mix, elegí un escenario configurado, seleccioná **Fuente de audio → Archivo de prueba**, elegí un archivo local de audio o video de Nerdearla u otro contenido autorizado y presioná **Iniciar**. El archivo usa el mismo worker del escenario y el mismo pipeline de Gemini que la entrada en vivo. Se necesitan FFmpeg y una clave válida de Gemini. El audio de muestra usado durante el desarrollo no está incluido en Git; aportá tu propio archivo autorizado. También están los [pasos de instalación manual](#instalación-manual-alternativa).
+
+## Salidas del producto
+
+| Ruta | Uso |
+| --- | --- |
+| `/stage` | Consola del operador en la computadora o mini-PC del escenario |
+| `/audience` | Selector de escenario o sesión para el público |
+| `/audience/{stage_id}` | Subtítulos móviles de un escenario |
+| `/display/{stage_id}?lang=original`, `?lang=es` o `?lang=both` | TV, segundo monitor o proyector del recinto |
+| `/overlay/{stage_id}?lang=original` o `?lang=es` | Fuente transparente para vMix/OBS |
+| `/control` | Sala de control de producción |
+
+Abrí `/display/{stage_id}` en el segundo monitor del escenario o en la pantalla del recinto. Usa el mismo stream de subtítulos, se reconecta automáticamente y muestra ambos idiomas por defecto. StagePulse usa **un pipeline de IA por escenario activo, no por espectador**; la cantidad de espectadores simultáneos depende igualmente del servidor y de la red.
+
 ## Requisitos
 
 - Windows y Python con `venv` (probado con Python 3.13); acceso de red a la API de Gemini.
@@ -12,7 +39,7 @@ El proyecto es un prototipo funcional para eventos locales. La [documentación i
 - FFmpeg en `PATH` para la herramienta separada de transcripción de archivos y las pruebas de escenarios con archivos. La captura del navegador no usa FFmpeg.
 - Una entrada de audio autorizada en el evento. Los audios de muestra del desafío se excluyen de Git.
 
-## Instalación e inicio
+## Instalación manual alternativa
 
 Ejecutá estos comandos en PowerShell desde la raíz del proyecto:
 
@@ -30,7 +57,7 @@ Editá `.env` localmente y configurá `GEMINI_API_KEY`. Iniciá el servidor manu
 .\scripts\start.ps1
 ```
 
-El helper comprueba `.venv`, `.env` y el puerto antes de iniciar `backend/serve.py`. Acepta `-HostAddress`, `-Port` y `-Config`. El comando manual sigue disponible y muestra los errores directamente.
+El helper de inicio comprueba `.venv`, `.env` y que el número de puerto sea válido antes de iniciar `backend/serve.py`. Acepta `-HostAddress`, `-Port` y `-Config`. Ejecutá primero `scripts/doctor.ps1` para comprobar dependencias, configuración de escenarios y disponibilidad del puerto. El comando manual sigue disponible y muestra los errores directamente.
 
 ## Configuración de escenarios y terminología
 
@@ -62,7 +89,9 @@ El ejemplo se configura sólo para `main`; un escenario sin `terminology` conser
 4. Agregá `/overlay/{stage_id}?lang=original` o `?lang=es` al sistema de transmisión. En vMix usá Browser Input de 1920×1080; en OBS, Browser Source de 1920×1080. El overlay tiene fondo transparente y coloca los subtítulos cerca del área segura inferior.
 5. Presioná **Detener** en Stage Console al finalizar.
 
-Stage Console, Audience View y Control Room tienen un selector independiente de **idioma de la interfaz** (English/Español), guardado en `localStorage`. No modifica el idioma de los subtítulos. El overlay no muestra controles. La [guía de operación](docs/operations.es.md) contiene el checklist y soluciones básicas.
+Stage Console, el selector del público, Audience View y Control Room comparten la preferencia de **idioma de la interfaz** (English/Español), guardada en `localStorage`. No modifica el idioma de los subtítulos. La pantalla del recinto y el overlay no muestran controles. La [guía de operación](docs/operations.es.md) contiene el checklist y soluciones básicas.
+
+StagePulse puede incrustarse como webview/iframe público por HTTPS en una plataforma de eventos. Usá `/audience` como entrada estable para que cada asistente elija su escenario. La plataforma debe permitir el iframe y las conexiones WebSocket al origen de StagePulse. Es una incrustación genérica del navegador, no una integración oficial con una plataforma de eventos.
 
 ## Enlaces para público en LAN
 
