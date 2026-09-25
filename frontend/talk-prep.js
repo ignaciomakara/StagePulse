@@ -13,6 +13,7 @@ let stageId = "";
 let rows = [];
 let activeCount = 0;
 let locked = true;
+let loaded = false;
 let busy = false;
 let message = { key: "prepRulesActive", values: { count: 0 } };
 
@@ -22,7 +23,7 @@ function show(key, values = {}) {
 }
 
 function sync() {
-  const disabled = !stageId || locked || busy;
+  const disabled = !stageId || !loaded || locked || busy;
   for (const input of [title, speaker, abstract, suggestButton, applyButton]) input.disabled = disabled;
   addButton.disabled = disabled || rows.length >= 15;
   for (const input of list.querySelectorAll("input, button")) input.disabled = disabled;
@@ -73,8 +74,14 @@ function renderRows() {
 async function loadStage(nextStageId) {
   stageId = nextStageId;
   rows = [];
+  activeCount = 0;
   locked = true;
+  loaded = false;
   busy = false;
+  title.value = "";
+  speaker.value = "";
+  abstract.value = "";
+  show("prepRulesActive", { count: 0 });
   renderRows();
   if (!stageId) return;
   const requested = stageId;
@@ -86,6 +93,7 @@ async function loadStage(nextStageId) {
     rows = state.terms.map((term) => ({ enabled: true, ...term }));
     activeCount = state.active_count;
     locked = !state.editable;
+    loaded = true;
     renderRows();
     show(locked ? "prepLocked" : "prepRulesActive", { count: activeCount });
   } catch (_error) {

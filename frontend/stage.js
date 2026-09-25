@@ -37,6 +37,8 @@ let desired = false;
 let starting = false;
 let fileStarting = false;
 let fileRunning = false;
+let stageActive = false;
+let statusReady = false;
 let sampleBuffer = [];
 let samplePosition = 0;
 let pcmBuffer = [];
@@ -58,15 +60,16 @@ const selectedStage = () => stageSelect.value;
 
 function syncSourceControls() {
   const testFileMode = sourceModeSelect.value === "file";
+  const locked = !statusReady || stageActive || desired || starting || fileStarting;
   liveInputControls.hidden = testFileMode;
   testFileControls.hidden = !testFileMode;
-  deviceSelect.disabled = testFileMode;
-  devicesButton.disabled = testFileMode;
-  testFileInput.disabled = fileStarting || fileRunning;
-  document.querySelector("#choose-test-file").disabled = fileStarting || fileRunning;
-  sourceModeSelect.disabled = desired || starting || fileStarting || fileRunning;
-  if (fileStarting || fileRunning) stageSelect.disabled = true;
-  startButton.disabled = desired || starting || fileStarting || fileRunning
+  deviceSelect.disabled = testFileMode || locked;
+  devicesButton.disabled = testFileMode || locked;
+  testFileInput.disabled = locked || fileRunning;
+  document.querySelector("#choose-test-file").disabled = locked || fileRunning;
+  sourceModeSelect.disabled = locked || fileRunning;
+  stageSelect.disabled = desired || starting || fileStarting;
+  startButton.disabled = locked || fileRunning
     || (testFileMode && !testFileInput.files.length);
   stopButton.disabled = fileStarting || !(desired || fileRunning);
 }
@@ -90,12 +93,12 @@ async function startTestFile() {
       return;
     }
     fileRunning = true;
+    stageActive = true;
     setConnection("testFileStreaming");
   } catch (_error) {
     setConnection("testFileNetworkError");
   } finally {
     fileStarting = false;
-    if (!fileRunning) stageSelect.disabled = false;
     syncSourceControls();
     updateStatus();
   }
@@ -109,7 +112,7 @@ async function stopTestFile() {
     const response = await fetch(`/api/stages/${encodeURIComponent(selectedStage())}/stop`, { method: "POST" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     fileRunning = false;
-    stageSelect.disabled = false;
+    stageActive = false;
     setConnection("stageStopped");
   } catch (error) {
     setConnection("stopFailed", { error: error.message });
@@ -191,7 +194,7 @@ function connectAudio() {
     } else if (data.type === "error") {
       setConnection("stageError", { error: data.detail });
       desired = false;
-      localStorage.removeItem("stagepulse-active");
+      sessionStorage.removeItem("stagepulse-active");
     }
   };
   socket.onclose = (event) => {
@@ -250,9 +253,9 @@ async function startCapture() {
     desired = true;
     stopButton.disabled = false;
     stageSelect.disabled = true;
-    localStorage.setItem("stagepulse-stage", selectedStage());
+    sessionStorage.setItem("stagepulse-stage", selectedStage());
     localStorage.setItem("stagepulse-device", deviceId);
-    localStorage.setItem("stagepulse-active", "1");
+    sessionStorage.setItem("stagepulse-active", "1");
     await refreshDevices();
     connectAudio();
     syncSourceControls();
@@ -268,7 +271,7 @@ async function startCapture() {
 
 async function stopCapture() {
   desired = false;
-  localStorage.removeItem("stagepulse-active");
+  sessionStorage.removeItem("stagepulse-active");
   clearTimeout(reconnectTimer);
   if (audioSocket) audioSocket.close();
   audioSocket = null;
@@ -299,6 +302,7 @@ async function updateAudienceLink() {
     audienceQr.src = `/api/stages/${encodeURIComponent(stageId)}/audience-qr.svg`;
     setAudienceMessage(link.local_only ? "audienceLocalWarning" : "audienceShare");
   } catch (error) {
+    if (stageId !== selectedStage()) return;
     setAudienceMessage("audienceLinkUnavailable", { error: error.message });
   }
 }
@@ -311,11 +315,16 @@ function connectCaptions() {
   const socket = new WebSocket(wsUrl(`/ws/stages/${encodeURIComponent(selectedStage())}/captions`));
   captionSocket = socket;
   socket.onmessage = ({ data }) => {
+    if (generation !== captionGeneration) return;
     const event = JSON.parse(data);
     views[event.language]?.accept(event);
   };
   socket.onclose = () => {
-    if (generation === captionGeneration) setTimeout(connectCaptions, 1200);
+    if (generation === captionGeneration) {
+      setTimeout(() => {
+        if (generation === captionGeneration) connectCaptions();
+      }, 1200);
+    }
   };
 }
 
@@ -327,7 +336,9 @@ async function updateStatus() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const status = await response.json();
     if (stageId !== selectedStage()) return;
-    talkPrep.setActive(["starting", "running"].includes(status.state));
+    statusReady = true;
+    stageActive = ["starting", "running"].includes(status.state);
+    talkPrep.setActive(stageActive);
     if (!desired && !fileStarting && status.source_mode === "test_file"
         && ["starting", "running"].includes(status.state) && !fileRunning) {
       sourceModeSelect.value = "file";
@@ -336,11 +347,10 @@ async function updateStatus() {
       syncSourceControls();
     } else if (fileRunning && ["completed", "failed", "stopped"].includes(status.state)) {
       fileRunning = false;
-      stageSelect.disabled = false;
       setConnection(status.state === "completed" ? "testFileCompleted"
         : status.state === "failed" ? "testFileFailed" : "stageStopped");
-      syncSourceControls();
     }
+    syncSourceControls();
     stageBadge.textContent = stateText(status.state);
     stageBadge.dataset.state = status.state;
     audioSignal.textContent = t(status.audio_receiving ? "yes" : "no");
@@ -364,7 +374,29 @@ async function updateStatus() {
 }
 
 stageSelect.onchange = (event) => {
-  if (event) localStorage.setItem("stagepulse-stage", selectedStage());
+  if (event) sessionStorage.setItem("stagepulse-stage", selectedStage());
+  stageActive = false;
+  statusReady = false;
+  fileRunning = false;
+  sourceModeSelect.value = "live";
+  testFileInput.value = "";
+  testFileName.dataset.i18n = "noFileSelected";
+  testFileName.textContent = t("noFileSelected");
+  setConnection("idle");
+  stageBadge.textContent = stateText("created");
+  stageBadge.dataset.state = "created";
+  stageStatus.textContent = t("stageStatusInitial");
+  for (const signal of [audioSignal, providerSignal, translationSignal]) {
+    signal.textContent = "\u2014";
+    signal.dataset.state = "waiting";
+  }
+  viewerSignal.textContent = "\u2014";
+  audienceLink.removeAttribute("href");
+  audienceUrl.value = "";
+  audienceQr.removeAttribute("src");
+  audienceMessage = null;
+  audienceWarning.textContent = "";
+  syncSourceControls();
   updateAudienceLink();
   talkPrep.loadStage(selectedStage());
   views.en.clear();
@@ -420,11 +452,11 @@ try {
     option.textContent = stage.name;
     stageSelect.append(option);
   }
-  const saved = localStorage.getItem("stagepulse-stage");
+  const saved = sessionStorage.getItem("stagepulse-stage");
   const requested = new URLSearchParams(location.search).get("stage");
   if (stages.some((stage) => stage.stage_id === requested)) stageSelect.value = requested;
   else if (stages.some((stage) => stage.stage_id === saved)) stageSelect.value = saved;
-  const resumeActiveStage = localStorage.getItem("stagepulse-active") === "1" && selectedStage() === saved;
+  const resumeActiveStage = sessionStorage.getItem("stagepulse-active") === "1" && selectedStage() === saved;
   stageSelect.onchange();
   await refreshDevices();
   setInterval(updateStatus, 1000);
