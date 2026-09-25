@@ -5,6 +5,7 @@
 
 # Python
 .venv/
+.venv-release-smoke/
 __pycache__/
 *.py[cod]
 .pytest_cache/

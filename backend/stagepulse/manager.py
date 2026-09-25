@@ -72,6 +72,7 @@ class StageManager:
                     source_language=item["source_language"],
                     target_language=item.get("target_language"),
                     audio_file=(path.parent / item["audio_file"]).resolve(),
+                    terminology=item.get("terminology"),
                 )
             )
         return cls(configs, api_key, debug_reconnect_after)

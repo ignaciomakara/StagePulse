@@ -10,6 +10,7 @@ from .audio import AudioSource
 from .captions import CaptionAssembler, CaptionBus
 from .models import CaptionEvent, StageConfig, StageStatus
 from .providers import CaptionProvider, ProviderTranscript
+from .terminology import TerminologyNormalizer
 
 
 class StageWorker:
@@ -31,6 +32,7 @@ class StageWorker:
         self._connections = 0
         self._task: asyncio.Task | None = None
         self._assemblers: dict[str, CaptionAssembler] = {}
+        self._terminology = TerminologyNormalizer(config.terminology)
         self._session_started_at: datetime | None = None
         self._connection_started_at: datetime | None = None
         self._last_caption_at: datetime | None = None
@@ -124,7 +126,7 @@ class StageWorker:
                 CaptionEvent(
                     stage_id=self.config.stage_id,
                     language=fragment.language,
-                    text=unit.text,
+                    text=self._terminology.apply(fragment.language, unit.text),
                     is_final=unit.is_final,
                     timestamp=timestamp,
                     provider=self.provider.name,
@@ -142,7 +144,7 @@ class StageWorker:
                         CaptionEvent(
                             stage_id=self.config.stage_id,
                             language=language,
-                            text=unit.text,
+                            text=self._terminology.apply(language, unit.text),
                             is_final=unit.is_final,
                             timestamp=timestamp,
                             provider=self.provider.name,

@@ -1,0 +1,14 @@
+# Operación de StagePulse
+
+Este es el checklist corto para producción. La instalación y los límites están en el [README canónico](../README.md); la versión española es [README.es.md](../README.es.md).
+
+1. **Configurar el escenario.** Agregá su ID y nombre a `config/stages.gate3.json`. Sumá reglas opcionales de `terminology` sólo para correcciones explícitas. Confirmá que `.env` contenga `GEMINI_API_KEY`. Los IDs aparecen en las URLs del público y los overlays.
+2. **Elegir entrada de audio.** Ejecutá `.\scripts\start.ps1` (o `.\.venv\Scripts\python.exe backend\serve.py`). En la computadora del escenario abrí `/stage`, seleccioná el escenario, habilitá los dispositivos y elegí la entrada del evento. Para acceder al micrófono usá localhost o HTTPS.
+3. **Iniciar.** Presioná Iniciar una vez. Confirmá que Stage Console indique envío de audio y luego escenario activo y proveedor conectado. Los subtítulos originales y en español deberían aparecer mientras habla la persona.
+4. **Vigilar Control Room.** Abrí `/control`. Revisá estado del escenario, conexión del navegador, audio reciente, conexión del proveedor, contadores de conexiones y reconexiones, último subtítulo y último error. Una reconexión breve puede terminar entre actualizaciones de un segundo; los contadores siguen visibles después.
+5. **Compartir el QR del público.** Confirmá que los teléfonos puedan abrir la URL mostrada en Stage Console. Si dice localhost, configurá `STAGEPULSE_PUBLIC_BASE_URL` con el origen LAN o HTTPS real y reiniciá el servidor. Compartí el QR o copiá el enlace. El público puede elegir idioma de subtítulos independientemente del idioma de la interfaz.
+6. **Agregar overlay de transmisión.** Usá `/overlay/{stage_id}?lang=original` o `?lang=es`. Agregalo como Browser Input de 1920×1080 en vMix o Browser Source en OBS. Tiene fondo transparente y no muestra controles. Comprobá el texto en la vista previa antes de salir al aire.
+7. **Detener.** Al terminar la charla, presioná Detener en Stage Console. Confirmá que Control Room muestre el escenario detenido. No cierres el navegador como reemplazo de una detención planificada.
+8. **Resolver problemas.** Si faltan dispositivos, revisá permiso de micrófono, entrada elegida y contexto seguro. Si los teléfonos no abren el QR, revisá origen público, dirección LAN, firewall y conectividad. Si se detienen los subtítulos, consultá `last_error`, estado del proveedor y hora del último audio en Control Room. La recuperación de Gemini es automática y acotada; las fallas persistentes requieren revisar acceso/cuota de API y red. Mantené abierto el navegador durante una reconexión recuperable del proveedor.
+
+StagePulse no tiene autenticación; operalo en una red confiable. El overlay y las vistas del público consumen eventos compartidos y no crean sesiones Gemini adicionales.

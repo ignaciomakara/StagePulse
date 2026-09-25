@@ -14,6 +14,7 @@ class StageConfig:
     source_language: str
     target_language: str | None
     audio_file: Path
+    terminology: dict[str, dict[str, str]] | None = None
 
 
 @dataclass(frozen=True)

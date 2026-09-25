@@ -1,3 +1,5 @@
+import { initI18n, t } from "/static/i18n.js";
+
 const stageId = decodeURIComponent(location.pathname.split("/").at(-1));
 const connection = document.querySelector("#connection");
 const captionElement = document.querySelector("#captions");
@@ -7,6 +9,12 @@ const histories = {
   es: { finalLines: [], preview: "" },
 };
 let socket = null;
+let connectionMessage = { key: "connecting", values: {} };
+
+function setConnection(key, values = {}) {
+  connectionMessage = { key, values };
+  connection.textContent = t(key, values);
+}
 
 function render() {
   captionElement.replaceChildren();
@@ -27,7 +35,7 @@ function render() {
 function connect() {
   const protocol = location.protocol === "https:" ? "wss" : "ws";
   socket = new WebSocket(`${protocol}://${location.host}/ws/stages/${encodeURIComponent(stageId)}/captions`);
-  socket.onopen = () => { connection.textContent = "Captions connected"; };
+  socket.onopen = () => { setConnection("captionsConnected"); };
   socket.onmessage = ({ data }) => {
     const event = JSON.parse(data);
     if (!(event.language in histories)) return;
@@ -42,12 +50,13 @@ function connect() {
     render();
   };
   socket.onclose = () => {
-    connection.textContent = "Captions disconnected. Reconnecting…";
+    setConnection("captionsDisconnected");
     setTimeout(connect, 1200);
   };
 }
 
 languageSelect.onchange = render;
+initI18n(() => setConnection(connectionMessage.key, connectionMessage.values));
 document.querySelector("#fullscreen").onclick = async () => {
   if (document.fullscreenElement) await document.exitFullscreen();
   else await document.documentElement.requestFullscreen();
@@ -59,5 +68,5 @@ try {
   document.querySelector("#stage-title").textContent = stage.name;
   connect();
 } catch (error) {
-  connection.textContent = `Stage unavailable: ${error.message}`;
+  setConnection("stageUnavailable", { error: error.message });
 }

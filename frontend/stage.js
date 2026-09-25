@@ -1,4 +1,5 @@
 import { createCaptionView } from "/static/captions.js";
+import { initI18n, stateText, t } from "/static/i18n.js";
 
 const stageSelect = document.querySelector("#stage");
 const deviceSelect = document.querySelector("#device");
@@ -25,6 +26,18 @@ let starting = false;
 let sampleBuffer = [];
 let samplePosition = 0;
 let pcmBuffer = [];
+let connectionMessage = { key: "idle", values: {} };
+let audienceMessage = null;
+
+function setConnection(key, values = {}) {
+  connectionMessage = { key, values };
+  connection.textContent = t(key, values);
+}
+
+function setAudienceMessage(key, values = {}) {
+  audienceMessage = { key, values };
+  audienceWarning.textContent = t(key, values);
+}
 
 const wsUrl = (path) => `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}${path}`;
 const selectedStage = () => stageSelect.value;
@@ -36,7 +49,7 @@ async function refreshDevices() {
   for (const [index, item] of devices.entries()) {
     const option = document.createElement("option");
     option.value = item.deviceId;
-    option.textContent = item.label || `Audio input ${index + 1}`;
+    option.textContent = item.label || t("audioInputNumber", { number: index + 1 });
     deviceSelect.append(option);
   }
   if (devices.some((item) => item.deviceId === selected)) deviceSelect.value = selected;
@@ -47,16 +60,16 @@ async function enableDevices() {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
     stream.getTracks().forEach((track) => track.stop());
     await refreshDevices();
-    connection.textContent = "Audio devices available. Select an input, then Start.";
+    setConnection("audioDevicesAvailable");
   } catch (error) {
-    connection.textContent = `Audio permission/device error: ${error.message}`;
+    setConnection("audioPermissionError", { error: error.message });
   }
 }
 
 function sendPcmFrame(samples) {
   if (!audioSocket || audioSocket.readyState !== WebSocket.OPEN) return;
   if (audioSocket.bufferedAmount > 128_000) {
-    connection.textContent = "Audio connection is falling behind; dropping frames.";
+    setConnection("audioLag");
     return;
   }
   const buffer = new ArrayBuffer(samples.length * 2);
@@ -89,16 +102,16 @@ function acceptSamples(samples) {
 
 function connectAudio() {
   if (!desired || audioSocket) return;
-  connection.textContent = "Connecting audio to stage…";
+  setConnection("audioConnecting");
   const socket = new WebSocket(wsUrl(`/ws/stages/${encodeURIComponent(selectedStage())}/audio`));
   audioSocket = socket;
-  socket.onopen = () => { connection.textContent = "Audio connected; waiting for Gemini…"; };
+  socket.onopen = () => { setConnection("audioWaiting"); };
   socket.onmessage = (message) => {
     const data = JSON.parse(message.data);
     if (data.type === "ready") {
-      connection.textContent = data.resumed ? "Audio reconnected to active stage." : "Audio streaming to stage.";
+      setConnection(data.resumed ? "audioReconnected" : "audioStreaming");
     } else if (data.type === "error") {
-      connection.textContent = `Stage error: ${data.detail}`;
+      setConnection("stageError", { error: data.detail });
       desired = false;
       localStorage.removeItem("stagepulse-active");
     }
@@ -106,11 +119,11 @@ function connectAudio() {
   socket.onclose = (event) => {
     if (audioSocket === socket) audioSocket = null;
     if (desired) {
-      connection.textContent = `Audio disconnected (${event.reason || event.code}). Reconnecting…`;
+      setConnection("audioDisconnected", { reason: event.reason || event.code });
       reconnectTimer = setTimeout(connectAudio, 1200);
     }
   };
-  socket.onerror = () => { connection.textContent = "Audio connection error."; };
+  socket.onerror = () => { setConnection("audioConnectionError"); };
 }
 
 async function releaseCapture() {
@@ -129,7 +142,7 @@ async function startCapture() {
   startButton.disabled = true;
   try {
     if (!navigator.mediaDevices || !window.AudioWorkletNode) {
-      throw new Error("A secure context and AudioWorklet support are required (use localhost or HTTPS). ");
+      throw new Error(t("secureContextRequired"));
     }
     const deviceId = deviceSelect.value;
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -143,7 +156,7 @@ async function startCapture() {
     });
     for (const track of stream.getAudioTracks()) {
       track.onended = () => {
-        connection.textContent = "Audio device disconnected.";
+        setConnection("audioDeviceDisconnected");
         stopCapture();
       };
     }
@@ -165,7 +178,7 @@ async function startCapture() {
     await refreshDevices();
     connectAudio();
   } catch (error) {
-    connection.textContent = `Capture error: ${error.message}`;
+    setConnection("captureError", { error: error.message });
     await releaseCapture();
     startButton.disabled = false;
   } finally {
@@ -186,9 +199,9 @@ async function stopCapture() {
   try {
     const response = await fetch(`/api/stages/${encodeURIComponent(selectedStage())}/stop`, { method: "POST" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    connection.textContent = "Stage stopped.";
+    setConnection("stageStopped");
   } catch (error) {
-    connection.textContent = `Stop failed: ${error.message}`;
+    setConnection("stopFailed", { error: error.message });
   }
 }
 
@@ -203,11 +216,9 @@ async function updateAudienceLink() {
     audienceLink.href = link.url;
     audienceUrl.value = link.url;
     audienceQr.src = `/api/stages/${encodeURIComponent(stageId)}/audience-qr.svg`;
-    audienceWarning.textContent = link.local_only
-      ? "This localhost QR cannot be opened from another device. Set STAGEPULSE_PUBLIC_BASE_URL to a reachable LAN or HTTPS origin."
-      : "Share this QR with the audience.";
+    setAudienceMessage(link.local_only ? "audienceLocalWarning" : "audienceShare");
   } catch (error) {
-    audienceWarning.textContent = `Audience link unavailable: ${error.message}`;
+    setAudienceMessage("audienceLinkUnavailable", { error: error.message });
   }
 }
 
@@ -233,9 +244,14 @@ async function updateStatus() {
     const response = await fetch(`/api/stages/${encodeURIComponent(selectedStage())}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const status = await response.json();
-    stageStatus.textContent = `Stage: ${status.state} · Gemini connections opened: ${status.connections} · Caption viewers: ${status.viewers}${status.error ? ` · Error: ${status.error}` : ""}`;
+    stageStatus.textContent = t("stageStatus", {
+      state: stateText(status.state),
+      connections: status.connections,
+      viewers: status.viewers,
+      error: status.error ? t("stageStatusError", { error: status.error }) : "",
+    });
   } catch (error) {
-    stageStatus.textContent = `Stage status unavailable: ${error.message}`;
+    stageStatus.textContent = t("stageStatusUnavailable", { error: error.message });
   }
 }
 
@@ -254,11 +270,18 @@ stopButton.onclick = stopCapture;
 document.querySelector("#copy-audience-url").onclick = async () => {
   try {
     await navigator.clipboard.writeText(audienceUrl.value);
-    audienceWarning.textContent = "Audience link copied.";
+    setAudienceMessage("audienceLinkCopied");
   } catch (error) {
-    audienceWarning.textContent = `Copy failed: ${error.message}`;
+    setAudienceMessage("copyFailed", { error: error.message });
   }
 };
+
+initI18n(() => {
+  setConnection(connectionMessage.key, connectionMessage.values);
+  if (audienceMessage) setAudienceMessage(audienceMessage.key, audienceMessage.values);
+  stageStatus.textContent = t("stageStatusInitial");
+  updateStatus();
+});
 
 try {
   const response = await fetch("/api/stages");
@@ -280,5 +303,5 @@ try {
   setInterval(updateStatus, 1000);
   if (resumeActiveStage) startCapture();
 } catch (error) {
-  connection.textContent = `Cannot load stages: ${error.message}`;
+  setConnection("cannotLoadStages", { error: error.message });
 }

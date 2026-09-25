@@ -1,123 +1,94 @@
 # StagePulse
 
-**Open-source real-time captioning infrastructure for live conferences.**
+StagePulse is open-source live captioning infrastructure built for the **Nerdearla Vibeathon 2026**. At a conference, each stage browser captures its venue audio once. StagePulse transcribes the original English speech, translates it to Spanish, and distributes the same caption events to the stage console, audience phones, production control room, and broadcast overlays. Audience viewers do not start additional AI pipelines.
 
-StagePulse is being built during the Nerdearla Vibeathon 2026.
+The project is a working local-event prototype. The English documentation is canonical; see [README.es.md](README.es.md) for the Spanish guide and [operations](docs/operations.md) for the short production checklist.
 
-The goal is simple: capture live audio from each stage once, transcribe and translate it in real time, and distribute the resulting captions to the venue screen, audience devices and live broadcast integrations.
+## Requirements
 
-## Current status
+- Windows and Python with `venv` (tested with Python 3.13); network access to the Gemini API.
+- A valid `GEMINI_API_KEY` in a local `.env` file. Never commit this file.
+- A browser with microphone and AudioWorklet support. Microphone capture needs a secure context: localhost on the stage computer or HTTPS.
+- FFmpeg on `PATH` for the separate file transcription tool and file-backed stage runs. Browser microphone capture does not use FFmpeg.
+- Authorized audio input at the venue. Challenge audio samples are intentionally excluded from Git.
 
-Work in progress.
+## Install and start
 
-## Local live transcription
-
-Install FFmpeg and the Python dependencies, then add `GEMINI_API_KEY` to the
-project's local `.env` file. The key is read locally and is never printed.
-
-```powershell
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-python backend/transcribe_file.py path\to\audio-or-video-file
-```
-
-The tool sends mono, 16-bit, 16 kHz PCM to Gemini Live in real time and prints
-interim and finalized input transcriptions. The current live transcription
-model supports sessions of up to 10 minutes.
-
-## Browser stage and audience views
-
-Install the dependencies, keep `GEMINI_API_KEY` in the local `.env`, and start the
-server from the project root:
+Run these commands in PowerShell from the project root:
 
 ```powershell
+python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe backend\serve.py
+Copy-Item .env.example .env
 ```
 
-Open `http://127.0.0.1:8000/stage` on the stage computer. Select the configured
-stage and audio input, then press **Start**. The console shows original and
-Spanish captions. Use **Stop** to end that stage's stream. Each stage has one
-Gemini session while any number of audience tabs read the shared caption bus.
+Edit `.env` locally and set `GEMINI_API_KEY`. Start the server either manually or with the Windows helper:
 
-Open `http://127.0.0.1:8000/audience/main` for the example audience view;
-replace `main` with another configured stage ID. Audience viewers can choose
-Original or Español. The example stage IDs and names are in
-`config/stages.gate3.json`; add stages there without changing Python code.
+```powershell
+.\.venv\Scripts\python.exe backend\serve.py
+# Or:
+.\scripts\start.ps1
+```
 
-The stage browser needs a secure context for microphone access: use localhost
-on the stage computer or HTTPS. For mobile viewers on the same network, start
-the server with `--host 0.0.0.0` and open its LAN address. This minimal server
-has no authentication; keep it on a trusted local network.
+The helper checks for `.venv`, `.env`, and a valid port before starting `backend/serve.py`. It accepts `-HostAddress`, `-Port`, and `-Config`. The manual command remains available and shows errors directly.
 
-## Production views
+## Configure stages and terminology
 
-- `/stage` captures the selected stage audio once and shows original and Spanish captions.
-- `/audience/{stage_id}` shows shared captions with an Original/Spanish selector,
-  connection status, automatic reconnect, and a Fullscreen button.
-- `/control` polls existing stage status once per second and lists every configured
-  stage, its actual provider/audio/caption state and subscriber count, and links
-  to the stage, audience, and overlay views. Viewers do not open Gemini sessions.
-- `/overlay/{stage_id}?lang=original` and `?lang=es` show the selected live
-  caption on a transparent page. Captions clear after 15 seconds without an
-  update. The overlay uses the same caption WebSocket as Audience View.
+Edit `config/stages.gate3.json`. Every configured stage gets its own `StageWorker` and Gemini Live Translate pipeline. Add another stage by adding a JSON entry, with no application-code change. The `audio_file` path supports file-backed checks; Stage Console replaces that source with the selected browser audio input when started.
 
-Stage Console shows a QR and copyable audience link. By default, its URL uses
-the browser request's origin. A QR built from localhost works only on the stage
-computer; Stage Console warns when this happens. For audience phones on a LAN,
-set `STAGEPULSE_PUBLIC_BASE_URL` to the origin reachable from those phones,
-for example `http://192.168.1.20:8000`, and run the server on a reachable
-interface. This variable must be an HTTP(S) origin without a path. If using
-HTTPS through a reverse proxy, set it to the public HTTPS origin. The QR is
-generated locally and does not use a third-party QR service.
+An optional `terminology` map applies explicit word-boundary replacements to captions before publication, separately for each caption language:
+
+```json
+{
+  "id": "main",
+  "name": "Main Stage",
+  "source_language": "en",
+  "target_language": "es",
+  "audio_file": "../samples/nerdearla-freedos-60s.wav",
+  "terminology": {
+    "en": {"Word Perfect": "WordPerfect"},
+    "es": {"Word Perfect": "WordPerfect"}
+  }
+}
+```
+
+The example is configured only for `main`; a stage without `terminology` retains its original caption text. This is deterministic text replacement, not another model or fuzzy matching.
+
+## Run a conference stage
+
+1. Open `http://127.0.0.1:8000/stage` on the stage computer. Choose the stage and audio input, then press **Start**. The console shows original and Spanish captions.
+2. Open `/control` to watch every configured stage, including audio, provider, connection, error, caption, and subscriber information.
+3. Share the QR or copied link to `/audience/{stage_id}`. Audience viewers can switch **caption language** between Original and Spanish.
+4. Add `/overlay/{stage_id}?lang=original` or `?lang=es` to the broadcast system. In vMix, use a 1920×1080 Browser Input; in OBS, use a 1920×1080 Browser Source. The overlay has a transparent background and places captions near the lower safe area.
+5. Press **Stop** in Stage Console when the stage ends.
+
+Stage Console, Audience View, and Control Room each have a separate **UI language** selector (English/Español), saved in browser `localStorage`. It does not change the caption language. The overlay has no visible controls. The [operations guide](docs/operations.md) covers the full checklist and basic troubleshooting.
+
+## LAN audience links
+
+The QR uses the origin of the incoming request unless `STAGEPULSE_PUBLIC_BASE_URL` is set. A QR generated from localhost cannot be opened from another device; Stage Console warns about this. For LAN phones, use an origin they can reach:
 
 ```powershell
 $env:STAGEPULSE_PUBLIC_BASE_URL = "http://192.168.1.20:8000"
 .\.venv\Scripts\python.exe backend\serve.py --host 0.0.0.0
 ```
 
-In **vMix**, add a Browser Input using the full overlay URL, set its size to
-1920×1080, and layer it over the program feed. In **OBS**, add a Browser Source
-with the same URL, width 1920 and height 1080. Choose `lang=original` or
-`lang=es` for the output. The overlay background is transparent and captions
-sit in the lower safe area. Each overlay and audience viewer subscribes to the
-same stage bus; adding or closing viewers does not create Gemini connections.
+Replace the example IP with the stage computer's real LAN address. The variable must be an HTTP(S) origin without a path. Microphone access from another computer generally needs HTTPS; localhost remains suitable on the stage computer. StagePulse currently has no authentication, so keep the server on a trusted network. The QR is generated locally without an external QR service.
 
-## Long-running Live Translate sessions
+## Reliability and validation evidence
 
-Live Translate enables session resumption and sliding-window context compression.
-StagePulse retains the latest valid resumption handle in memory and rotates the
-Gemini connection when GoAway arrives. Unexpected disconnects use short, bounded
-retries. The stage worker and its caption subscribers remain in place during a
-provider reconnect. The stage status API exposes connection and reconnect counts,
-provider state, last audio/caption timestamps, GoAway details, and whether a
-resumption handle exists; it never exposes the handle itself.
+Live Translate uses session resumption handles and sliding-window context compression. StagePulse rotates the Gemini connection on GoAway and retries unexpected disconnects with bounded backoff while keeping the same stage worker and caption bus. During a reconnect, it buffers at most 102,400 bytes (3.2 seconds) of PCM, discards the oldest unsent frames if full, and does not replay frames whose delivery is uncertain. The browser input has its own 102,400-byte limit. No audio or captions are persisted.
 
-The provider-side reconnect buffer holds at most 3.2 seconds of PCM
-(102,400 bytes). The browser ingress source has a separate 102,400-byte limit,
-which the provider pump continues to drain during reconnects. If the reconnect
-buffer fills, the oldest unsent audio is discarded
-and counted in `dropped_audio_bytes`. A frame already taken for sending is not
-replayed if delivery becomes uncertain, avoiding duplicate audio at the cost of
-a possible short gap. Audio and captions are not persisted.
+Earlier real-audio validation exercised two simultaneous stages. A 13-minute-and-1-second continuous Nerdearla audio run received one GoAway with 50 seconds remaining, resumed onto a second connection, and ended on the planned stop with no reported error or dropped PCM. A separate production-view run showed five caption subscribers on one active stage without extra Gemini connections; closing and reopening a viewer changed the subscriber count without changing the provider connection count. These runs do not establish zero downtime, unlimited session length, or a general accuracy figure.
 
-For a controlled reliability check, `backend/run_stages.py` and `backend/serve.py`
-accept `--debug-reconnect-after SECONDS`. This test-only option forces one
-provider reconnect after the specified delay and is off by default. The
-long-audio file configuration is `config/stages.gate5-soak.json`.
+For a controlled reliability check, `backend/serve.py` and `backend/run_stages.py` accept `--debug-reconnect-after SECONDS`. It is off by default and should be used only for testing.
 
-## Core goals
+## Other tools and limits
 
-- Real-time original-language transcription
-- Real-time English-to-Spanish translation
-- Multiple simultaneous stages
-- Audience web captions
-- Stage display
-- Broadcast overlay
-- Automatic recovery from normal streaming failures
-- Simple open-source deployment
+`backend/transcribe_file.py path\to\audio-or-video-file` is the separate Gate 1 utility. It uses FFmpeg to send mono, 16-bit, 16 kHz PCM to Gemini Live and prints interim and final original-language transcripts. Its long-session behavior is separate from the stage translation provider.
+
+StagePulse currently runs as one server process with an in-memory caption bus. It has no authentication, database, historical caption playback, or cross-process distribution. Browser-source behavior in vMix and OBS is documented but has not been tested inside those applications. The Gemini model is a preview dependency and requires available API access and quota. See [architecture](docs/architecture.md) for component boundaries.
 
 ## License
 
-Apache-2.0
-
+Apache-2.0; see [LICENSE](LICENSE).

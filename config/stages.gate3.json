@@ -5,6 +5,10 @@
       "name": "Main Stage",
       "source_language": "en",
       "target_language": "es",
+      "terminology": {
+        "en": {"Word Perfect": "WordPerfect"},
+        "es": {"Word Perfect": "WordPerfect"}
+      },
       "audio_file": "../samples/nerdearla-freedos-60s.wav"
     },
     {

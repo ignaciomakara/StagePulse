@@ -150,7 +150,7 @@ class WebBridgeTests(unittest.TestCase):
                     with client.websocket_connect("/ws/stages/main/audio") as reconnected:
                         self.assertTrue(reconnected.receive_json()["resumed"])
                         self.assertEqual(provider.calls, 1)
-                        self.assertEqual(client.post("/api/stages/main/stop").json()["state"], "stopped")
+            self.assertEqual(client.post("/api/stages/main/stop").json()["state"], "stopped")
             self.assertEqual(provider.calls, 1)
 
 
