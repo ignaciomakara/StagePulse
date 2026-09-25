@@ -13,6 +13,7 @@ from pathlib import Path
 from dotenv import dotenv_values
 
 from stagepulse import StageManager
+from stagepulse.stage import DEFAULT_TRANSLATION_STALL_SECONDS
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,6 +25,8 @@ async def run(
     stop_after: float,
     debug_reconnect_after: float | None,
     diagnostics: bool = False,
+    recover_translation_stall: bool = False,
+    translation_stall_seconds: float = DEFAULT_TRANSLATION_STALL_SECONDS,
 ) -> int:
     api_key = dotenv_values(ROOT / ".env").get("GEMINI_API_KEY")
     if not api_key:
@@ -31,6 +34,8 @@ async def run(
     manager = StageManager.from_file(
         config_path, api_key, debug_reconnect_after=debug_reconnect_after,
         diagnostics=diagnostics,
+        recover_translation_stall=recover_translation_stall,
+        translation_stall_seconds=translation_stall_seconds,
     )
     if stop_stage is not None and stop_stage not in manager.workers:
         raise ValueError(f"Unknown stage: {stop_stage}")
@@ -134,6 +139,14 @@ def main() -> int:
     )
     parser.add_argument("--stop-stage", help="Stop one configured stage independently")
     parser.add_argument("--diagnostics", action="store_true", help="Emit benchmark trace with caption text")
+    parser.add_argument(
+        "--recover-translation-stall", action="store_true",
+        help="Debug only: attempt one reconnect on confirmed translation stall",
+    )
+    parser.add_argument(
+        "--translation-stall-seconds", type=float,
+        default=DEFAULT_TRANSLATION_STALL_SECONDS,
+    )
     parser.add_argument("--stop-after", type=float, default=20.0)
     parser.add_argument(
         "--debug-reconnect-after",
@@ -151,6 +164,8 @@ def main() -> int:
                 args.stop_after,
                 args.debug_reconnect_after,
                 args.diagnostics,
+                args.recover_translation_stall,
+                args.translation_stall_seconds,
             )
         )
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as exc:

@@ -10,7 +10,7 @@ from .captions import CaptionBus
 from .diagnostics import StageDiagnostics
 from .models import StageConfig, StageStatus
 from .providers import GeminiLiveTranslateProvider, GeminiTranscribeProvider
-from .stage import StageWorker
+from .stage import DEFAULT_TRANSLATION_STALL_SECONDS, StageWorker
 
 
 class StageManager:
@@ -20,6 +20,8 @@ class StageManager:
         api_key: str,
         debug_reconnect_after: float | None = None,
         diagnostics: bool = False,
+        recover_translation_stall: bool = False,
+        translation_stall_seconds: float = DEFAULT_TRANSLATION_STALL_SECONDS,
     ) -> None:
         if not api_key:
             raise ValueError("GEMINI_API_KEY is required")
@@ -27,12 +29,15 @@ class StageManager:
             raise ValueError("At least one stage must be configured")
         if debug_reconnect_after is not None and debug_reconnect_after <= 0:
             raise ValueError("Debug reconnect delay must be positive")
+        if translation_stall_seconds <= 0:
+            raise ValueError("Translation stall threshold must be positive")
         ids = [config.stage_id for config in configs]
         if len(set(ids)) != len(ids):
             raise ValueError("Stage IDs must be unique")
         self.bus = CaptionBus()
         self.workers: dict[str, StageWorker] = {}
         for config in configs:
+            stage_diagnostics = StageDiagnostics(config.stage_id) if diagnostics else None
             if config.target_language:
                 if (config.source_language, config.target_language) != ("en", "es"):
                     raise ValueError(
@@ -43,6 +48,7 @@ class StageManager:
                     config.source_language,
                     config.target_language,
                     debug_reconnect_after=debug_reconnect_after,
+                    diagnostics=stage_diagnostics,
                 )
             else:
                 provider = GeminiTranscribeProvider(api_key, config.source_language)
@@ -52,7 +58,9 @@ class StageManager:
                 provider,
                 self.bus,
                 api_key,
-                StageDiagnostics(config.stage_id) if diagnostics else None,
+                diagnostics=stage_diagnostics,
+                recover_translation_stall=recover_translation_stall,
+                translation_stall_seconds=translation_stall_seconds,
             )
 
     @classmethod
@@ -62,6 +70,8 @@ class StageManager:
         api_key: str,
         debug_reconnect_after: float | None = None,
         diagnostics: bool = False,
+        recover_translation_stall: bool = False,
+        translation_stall_seconds: float = DEFAULT_TRANSLATION_STALL_SECONDS,
     ) -> StageManager:
         path = path.resolve()
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -79,7 +89,10 @@ class StageManager:
                     terminology=item.get("terminology"),
                 )
             )
-        return cls(configs, api_key, debug_reconnect_after, diagnostics)
+        return cls(
+            configs, api_key, debug_reconnect_after, diagnostics,
+            recover_translation_stall, translation_stall_seconds,
+        )
 
     def start(self, stage_id: str) -> None:
         self.workers[stage_id].start()

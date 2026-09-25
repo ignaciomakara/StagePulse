@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import shutil
+import time
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Callable, Protocol
@@ -22,10 +23,12 @@ class BrowserAudioSource:
     """Receive browser PCM frames for one stage worker across socket reconnects."""
 
     def __init__(self) -> None:
-        self._queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=64)
+        self._queue: asyncio.Queue[tuple[bytes, float] | None] = asyncio.Queue(maxsize=64)
         self._closed = False
         self._buffered_bytes = 0
-        self.on_chunk: Callable[[bytes], None] | None = None
+        self.on_chunk: Callable[[bytes, int], None] | None = None
+        self.on_delivery: Callable[[bytes, float, int], None] | None = None
+        self.on_end: Callable[[], None] | None = None
 
     def feed(self, pcm: bytes) -> None:
         if self._closed:
@@ -35,10 +38,10 @@ class BrowserAudioSource:
         if self._buffered_bytes + len(pcm) > CHUNK_BYTES * 32:
             raise RuntimeError("Browser audio buffer is full; check the audio connection")
         try:
-            self._queue.put_nowait(pcm)
+            self._queue.put_nowait((pcm, time.monotonic()))
             self._buffered_bytes += len(pcm)
             if self.on_chunk is not None:
-                self.on_chunk(pcm)
+                self.on_chunk(pcm, self._queue.qsize())
         except asyncio.QueueFull as exc:
             raise RuntimeError("Browser audio buffer is full; check the audio connection") from exc
 
@@ -48,12 +51,17 @@ class BrowserAudioSource:
             if self._queue.full():
                 removed = self._queue.get_nowait()
                 if removed is not None:
-                    self._buffered_bytes -= len(removed)
+                    self._buffered_bytes -= len(removed[0])
             self._queue.put_nowait(None)
+            if self.on_end is not None:
+                self.on_end()
 
     async def chunks(self) -> AsyncIterator[bytes]:
-        while (chunk := await self._queue.get()) is not None:
+        while (item := await self._queue.get()) is not None:
+            chunk, received_at = item
             self._buffered_bytes -= len(chunk)
+            if self.on_delivery is not None:
+                self.on_delivery(chunk, time.monotonic() - received_at, self._queue.qsize())
             yield chunk
 
 
@@ -62,7 +70,9 @@ class FileAudioSource:
 
     def __init__(self, path: Path) -> None:
         self.path = path
-        self.on_chunk: Callable[[bytes], None] | None = None
+        self.on_chunk: Callable[[bytes, int], None] | None = None
+        self.on_delivery: Callable[[bytes, float, int], None] | None = None
+        self.on_end: Callable[[], None] | None = None
 
     async def chunks(self) -> AsyncIterator[bytes]:
         if not self.path.is_file():
@@ -96,8 +106,12 @@ class FileAudioSource:
         try:
             while chunk := await process.stdout.read(CHUNK_BYTES):
                 if self.on_chunk is not None:
-                    self.on_chunk(chunk)
+                    self.on_chunk(chunk, 0)
+                if self.on_delivery is not None:
+                    self.on_delivery(chunk, 0.0, 0)
                 yield chunk
+            if self.on_end is not None:
+                self.on_end()
             return_code = await process.wait()
             detail = (await stderr_task).decode(errors="replace").strip()
             if return_code:

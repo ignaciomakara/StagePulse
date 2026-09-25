@@ -58,3 +58,10 @@ class StageStatus:
     resumption_update_count: int = 0
     forced_reconnect_count: int = 0
     dropped_audio_bytes: int = 0
+    translation_stall_active: bool = False
+    translation_stall_started_at: datetime | None = None
+    translation_stall_count: int = 0
+    age_last_raw_en: float | None = None
+    age_last_raw_es: float | None = None
+    translation_status: str | None = None
+    translation_stall_reconnect_count: int = 0

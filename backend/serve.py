@@ -10,6 +10,7 @@ import uvicorn
 from dotenv import dotenv_values
 
 from stagepulse.manager import StageManager
+from stagepulse.stage import DEFAULT_TRANSLATION_STALL_SECONDS
 from stagepulse.web import create_app
 
 
@@ -32,6 +33,15 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--diagnostics", action="store_true", help="Emit benchmark trace with caption text")
     parser.add_argument(
+        "--recover-translation-stall", action="store_true",
+        help="Debug only: attempt one reconnect on confirmed translation stall",
+    )
+    parser.add_argument(
+        "--translation-stall-seconds", type=float,
+        default=DEFAULT_TRANSLATION_STALL_SECONDS,
+        help="Seconds without raw Spanish while English and audio continue (default: 6)",
+    )
+    parser.add_argument(
         "--debug-reconnect-after",
         type=float,
         help="Test only: force one provider reconnect after this many seconds",
@@ -43,6 +53,8 @@ def main() -> None:
     manager = StageManager.from_file(
         args.config, api_key, debug_reconnect_after=args.debug_reconnect_after,
         diagnostics=args.diagnostics,
+        recover_translation_stall=args.recover_translation_stall,
+        translation_stall_seconds=args.translation_stall_seconds,
     )
     uvicorn.run(
         create_app(manager, public_base_url=public_base_url),

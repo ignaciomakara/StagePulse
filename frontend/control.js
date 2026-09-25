@@ -85,6 +85,9 @@ function renderStage(stage) {
     ["browserConnected", yesNo(stage.browser_connected)],
     ["audioReceiving", `${yesNo(stage.audio_receiving)} · ${t("lastAudio", { age: since(stage.last_audio_at) })}`],
     ["providerConnected", `${yesNo(stage.provider_connected)} · ${stateText(stage.provider_status)}`],
+    ...(stage.translation_status
+      ? [["translation", t(stage.translation_status === "delayed" ? "translationDelayed" : "translationOk")]]
+      : []),
     ["connections", stage.connection_count],
     ["reconnects", stage.reconnect_count],
     ["sessionAge", connectionAge(stage.session_age_seconds)],

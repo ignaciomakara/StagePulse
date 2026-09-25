@@ -14,6 +14,7 @@ from google import genai
 from google.genai import types
 
 from .audio import AudioSource, CHUNK_BYTES, SAMPLE_RATE
+from .diagnostics import StageDiagnostics
 
 
 TRANSLATE_MODEL = "gemini-3.5-live-translate-preview"
@@ -25,22 +26,24 @@ class _BufferedAudio:
     """Keep only the newest 3.2 seconds while a provider connection is unavailable."""
 
     def __init__(self) -> None:
-        self._chunks: deque[bytes] = deque()
+        self._chunks: deque[tuple[bytes, float]] = deque()
         self._bytes = 0
         self._closed = False
         self._condition = asyncio.Condition()
         self.dropped_bytes = 0
+        self.last_wait_seconds = 0.0
+        self.last_queue_depth = 0
 
     async def put(self, chunk: bytes) -> None:
         async with self._condition:
             while self._chunks and self._bytes + len(chunk) > MAX_RECONNECT_AUDIO_BYTES:
                 removed = self._chunks.popleft()
-                self._bytes -= len(removed)
-                self.dropped_bytes += len(removed)
+                self._bytes -= len(removed[0])
+                self.dropped_bytes += len(removed[0])
             if len(chunk) > MAX_RECONNECT_AUDIO_BYTES:
                 self.dropped_bytes += len(chunk)
             else:
-                self._chunks.append(chunk)
+                self._chunks.append((chunk, time.monotonic()))
                 self._bytes += len(chunk)
                 self._condition.notify()
 
@@ -49,8 +52,10 @@ class _BufferedAudio:
             while not self._chunks and not self._closed:
                 await self._condition.wait()
             if self._chunks:
-                chunk = self._chunks.popleft()
+                chunk, queued_at = self._chunks.popleft()
                 self._bytes -= len(chunk)
+                self.last_wait_seconds = time.monotonic() - queued_at
+                self.last_queue_depth = len(self._chunks)
                 return chunk
             return None
 
@@ -172,10 +177,13 @@ class GeminiLiveTranslateProvider(_GeminiLiveProvider):
         source_language: str,
         target_language: str,
         debug_reconnect_after: float | None = None,
+        diagnostics: StageDiagnostics | None = None,
     ) -> None:
         super().__init__(api_key, source_language)
         self.target_language = target_language
         self.debug_reconnect_after = debug_reconnect_after
+        self.diagnostics = diagnostics
+        self._reconnect_requested = asyncio.Event()
         self.provider_status = "idle"
         self.reconnect_count = 0
         self.last_error: str | None = None
@@ -193,10 +201,19 @@ class GeminiLiveTranslateProvider(_GeminiLiveProvider):
         self._resume_handle: str | None = None
         self._connections_this_run = 0
         self._sent_audio = False
+        self._sent_pcm_bytes = 0
+        self.translation_stall_reconnect_count = 0
 
     @property
     def latest_resumption_handle_available(self) -> bool:
         return self._resume_handle is not None
+
+    def request_translation_stall_reconnect(self) -> bool:
+        """Request one sequential connection rotation from the current session."""
+        if self.provider_status != "connected" or self._reconnect_requested.is_set():
+            return False
+        self._reconnect_requested.set()
+        return True
 
     def _event(self, name: str) -> None:
         self.last_provider_event = name
@@ -228,6 +245,9 @@ class GeminiLiveTranslateProvider(_GeminiLiveProvider):
         self._resume_handle = None
         self._connections_this_run = 0
         self._sent_audio = False
+        self._sent_pcm_bytes = 0
+        self.translation_stall_reconnect_count = 0
+        self._reconnect_requested.clear()
         self.reconnect_count = 0
         self.last_error = None
         self.last_audio_at = None
@@ -284,6 +304,10 @@ class GeminiLiveTranslateProvider(_GeminiLiveProvider):
                     if reason == "forced":
                         self.forced_reconnect_count += 1
                         self._event("forced_reconnect")
+                    if reason == "translation_stall":
+                        self.translation_stall_reconnect_count += 1
+                        self.provider_status = "reconnecting"
+                        self._event("translation_stall_reconnect")
                     # GoAway already recorded in the receiver before rotation.
                     await asyncio.sleep(0.2)
                 except asyncio.CancelledError:
@@ -331,6 +355,7 @@ class GeminiLiveTranslateProvider(_GeminiLiveProvider):
         sender: asyncio.Task | None = None
         receiver: asyncio.Task | None = None
         force: asyncio.Task | None = None
+        recovery: asyncio.Task | None = None
         async with client.aio.live.connect(model=self.name, config=self._config()) as session:
             self._connections_this_run += 1
             if self._connections_this_run > 1:
@@ -344,12 +369,24 @@ class GeminiLiveTranslateProvider(_GeminiLiveProvider):
                 while (chunk := await buffer.get()) is not None:
                     # A frame is removed only once. If send fails mid-frame, it is
                     # not replayed because delivery to Gemini is uncertain.
+                    send_started = time.monotonic()
                     await session.send_realtime_input(
                         audio=types.Blob(
                             data=chunk, mime_type=f"audio/pcm;rate={SAMPLE_RATE}"
                         )
                     )
                     self._sent_audio = True
+                    self._sent_pcm_bytes += len(chunk)
+                    if self.diagnostics is not None:
+                        self.diagnostics.record(
+                            "provider_send", bytes=len(chunk),
+                            started_at=send_started,
+                            cumulative_bytes=self._sent_pcm_bytes,
+                            dropped_bytes=buffer.dropped_bytes,
+                            buffer_wait_s=buffer.last_wait_seconds,
+                            buffer_depth=buffer.last_queue_depth,
+                            send_duration_s=time.monotonic() - send_started,
+                        )
                 if not self._sent_audio:
                     raise RuntimeError("Audio source produced no PCM data")
                 for _ in range(15):
@@ -383,9 +420,11 @@ class GeminiLiveTranslateProvider(_GeminiLiveProvider):
             receiver = asyncio.create_task(receive())
             if self.debug_reconnect_after and self.forced_reconnect_count == 0:
                 force = asyncio.create_task(asyncio.sleep(self.debug_reconnect_after))
+            recovery = asyncio.create_task(self._reconnect_requested.wait())
             tasks = {sender, receiver}
             if force is not None:
                 tasks.add(force)
+            tasks.add(recovery)
             try:
                 done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
                 if sender in done:
@@ -402,6 +441,9 @@ class GeminiLiveTranslateProvider(_GeminiLiveProvider):
                     if reason == "go_away":
                         return reason
                     raise RuntimeError("Gemini Live closed before the audio source finished")
+                if recovery in done:
+                    self._reconnect_requested.clear()
+                    return "translation_stall"
                 return "forced"
             finally:
                 for task in tasks:
