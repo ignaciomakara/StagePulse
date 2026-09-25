@@ -66,7 +66,7 @@ Stage Console, Audience View, and Control Room each have a separate **UI languag
 
 ## LAN audience links
 
-The QR uses the origin of the incoming request unless `STAGEPULSE_PUBLIC_BASE_URL` is set. A QR generated from localhost cannot be opened from another device; Stage Console warns about this. For LAN phones, use an origin they can reach:
+The QR uses the origin of the incoming request unless `STAGEPULSE_PUBLIC_BASE_URL` is set. Put this value in the local `.env` file or in the server process environment; the process environment takes precedence. A QR generated from localhost cannot be opened from another device; Stage Console warns about this. For LAN phones, use an origin they can reach:
 
 ```powershell
 $env:STAGEPULSE_PUBLIC_BASE_URL = "http://192.168.1.20:8000"

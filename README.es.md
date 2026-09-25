@@ -66,7 +66,7 @@ Stage Console, Audience View y Control Room tienen un selector independiente de 
 
 ## Enlaces para público en LAN
 
-El QR usa el origen de la solicitud recibida salvo que se configure `STAGEPULSE_PUBLIC_BASE_URL`. Un QR generado desde localhost no funciona en otros dispositivos; Stage Console lo advierte. Para teléfonos en la LAN, usá un origen accesible para ellos:
+El QR usa el origen de la solicitud recibida salvo que se configure `STAGEPULSE_PUBLIC_BASE_URL`. Podés definirlo en el archivo `.env` local o en el entorno del proceso servidor; el entorno del proceso tiene prioridad. Un QR generado desde localhost no funciona en otros dispositivos; Stage Console lo advierte. Para teléfonos en la LAN, usá un origen accesible para ellos:
 
 ```powershell
 $env:STAGEPULSE_PUBLIC_BASE_URL = "http://192.168.1.20:8000"
