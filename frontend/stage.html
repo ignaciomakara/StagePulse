@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>StagePulse · Stage Console</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script type="module" src="/static/stage.js"></script>
+  </head>
+  <body>
+    <main>
+      <header><h1>StagePulse · Stage Console</h1><p>Live stage audio and captions</p></header>
+      <section class="controls">
+        <label>Stage <select id="stage"></select></label>
+        <label>Audio input <select id="device"></select></label>
+        <button id="devices" type="button">Enable audio devices</button>
+        <button id="start" type="button">Start</button>
+        <button id="stop" type="button" disabled>Stop</button>
+        <a id="audience-link" target="_blank" rel="noopener">Open Audience View</a>
+      </section>
+      <p id="connection" role="status">Idle</p>
+      <p id="stage-status">Stage status: created</p>
+      <section class="caption-grid">
+        <article><h2>Original · English</h2><div id="original" class="captions" aria-live="polite"></div></article>
+        <article><h2>Español</h2><div id="translated" class="captions" aria-live="polite"></div></article>
+      </section>
+    </main>
+  </body>
+</html>

@@ -18,6 +18,35 @@ class AudioSource(Protocol):
         """Yield raw mono 16-bit PCM at 16 kHz."""
 
 
+class BrowserAudioSource:
+    """Receive browser PCM frames for one stage worker across socket reconnects."""
+
+    def __init__(self) -> None:
+        self._queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=64)
+        self._closed = False
+
+    def feed(self, pcm: bytes) -> None:
+        if self._closed:
+            raise RuntimeError("Browser audio source is closed")
+        if not pcm or len(pcm) % 2 or len(pcm) > CHUNK_BYTES * 10:
+            raise ValueError("Expected nonempty 16-bit PCM frames up to one second")
+        try:
+            self._queue.put_nowait(pcm)
+        except asyncio.QueueFull as exc:
+            raise RuntimeError("Browser audio buffer is full; check the audio connection") from exc
+
+    def close(self) -> None:
+        if not self._closed:
+            self._closed = True
+            if self._queue.full():
+                self._queue.get_nowait()
+            self._queue.put_nowait(None)
+
+    async def chunks(self) -> AsyncIterator[bytes]:
+        while (chunk := await self._queue.get()) is not None:
+            yield chunk
+
+
 class FileAudioSource:
     """Read an audio or video file through FFmpeg at playback speed."""
 

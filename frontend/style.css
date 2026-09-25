@@ -1,0 +1,20 @@
+:root { font-family: system-ui, sans-serif; color: #f5f5f5; background: #141922; }
+body { margin: 0; }
+main { max-width: 1100px; margin: auto; padding: 1.5rem; }
+header { margin-bottom: 1.5rem; }
+h1 { margin: 0; }
+h2 { font-size: 1.15rem; }
+.controls { display: flex; align-items: end; gap: .75rem; flex-wrap: wrap; }
+label { display: grid; gap: .3rem; }
+select, button { font: inherit; padding: .6rem; border: 1px solid #64748b; border-radius: .4rem; }
+button { cursor: pointer; }
+button:disabled { cursor: default; opacity: .5; }
+a { color: #90cdf4; padding: .6rem; }
+#connection, #stage-status { color: #cbd5e1; }
+.caption-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+article { background: #202b3a; border-radius: .5rem; padding: 1rem; }
+.captions { min-height: 10rem; font-size: 1.5rem; line-height: 1.45; }
+.captions p { margin: .5rem 0; }
+.captions .preview { color: #bac6d4; }
+.audience { max-width: 850px; }
+.audience-captions { margin-top: 1rem; font-size: clamp(2rem, 5vw, 3.5rem); }
